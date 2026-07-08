@@ -11,7 +11,7 @@ class BooksScreen extends StatelessWidget {
 
   Future<void> _addBook(BuildContext context) async {
     final state = context.read<AppState>();
-    final picked = await FilePicker.pickFiles(
+    final picked = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['epub'],
       withData: true,
