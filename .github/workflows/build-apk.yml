@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write # needed to update the "latest" release
+  contents: write # needed to create/update releases
 
 jobs:
   build:
@@ -24,24 +24,46 @@ jobs:
           channel: stable
           cache: true
 
+      # Version = pubspec version name + CI run number as the build number,
+      # so every push produces a distinct, traceable APK.
+      - name: Compute version
+        id: ver
+        run: |
+          NAME=$(grep '^version:' pubspec.yaml | awk '{print $2}' | cut -d'+' -f1)
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "full=v$NAME-b${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+
       - name: Build release APK
         run: |
           flutter pub get
-          flutter build apk --release
+          flutter build apk --release \
+            --build-name=${{ steps.ver.outputs.name }} \
+            --build-number=${{ github.run_number }}
+          cp build/app/outputs/flutter-apk/app-release.apk \
+             "book-dashboard-${{ steps.ver.outputs.full }}.apk"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: book-dashboard-app
-          path: build/app/outputs/flutter-apk/app-release.apk
+          name: book-dashboard-${{ steps.ver.outputs.full }}
+          path: book-dashboard-${{ steps.ver.outputs.full }}.apk
 
-      # Also attach the APK to a rolling "latest" release for easy download
-      # on the phone: repo → Releases → "Latest APK".
+      # Permanent, versioned release — one per push, keeps full history.
+      - name: Versioned release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.ver.outputs.full }}
+          name: book-dashboard ${{ steps.ver.outputs.full }}
+          files: book-dashboard-${{ steps.ver.outputs.full }}.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Rolling "latest" release — always the newest APK at a stable URL.
       - name: Update latest release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: latest
           name: Latest APK
-          files: build/app/outputs/flutter-apk/app-release.apk
+          files: book-dashboard-${{ steps.ver.outputs.full }}.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
