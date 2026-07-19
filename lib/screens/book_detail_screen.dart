@@ -238,6 +238,7 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
             Tab(text: 'Scribe'),
           ]),
           actions: [
+            const TextSizeButtons(),
             IconButton(
               tooltip: 'Run prompt',
               icon: const Icon(Icons.bolt),
@@ -372,10 +373,13 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
                     icon: const Icon(Icons.close),
                     onPressed: () => Navigator.pop(context),
                   ),
+                  actions: const [TextSizeButtons(), SizedBox(width: 4)],
                 ),
-                body: SingleChildScrollView(
+                // Rendered as Markdown (nice typography), not raw text.
+                body: Markdown(
+                  data: b.chapterText(i),
+                  selectable: true,
                   padding: const EdgeInsets.all(16),
-                  child: SelectableText(b.chapterText(i)),
                 ),
               ),
             ),
@@ -472,6 +476,7 @@ class _StreamingResultViewerState extends State<_StreamingResultViewer> {
           onPressed: () => Navigator.pop(context),
         ),
         actions: [
+          const TextSizeButtons(),
           IconButton(
             tooltip: 'Copy',
             icon: const Icon(Icons.copy),

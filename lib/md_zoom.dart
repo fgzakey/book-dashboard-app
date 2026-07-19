@@ -38,13 +38,12 @@ class _ZoomMdState extends State<ZoomMd> {
             .previewMdScale((_startScale * d.scale).clamp(0.6, 3.0).toDouble());
       },
       onScaleEnd: (_) => context.read<AppState>().saveMdScale(),
-      child: MediaQuery(
-        data: MediaQuery.of(context)
-            .copyWith(textScaler: TextScaler.linear(scale)),
-        child: widget.scrollable
-            ? Markdown(data: widget.data, selectable: true)
-            : MarkdownBody(data: widget.data, selectable: true),
-      ),
+      // The scale itself is applied app-wide by the MaterialApp builder
+      // (MediaQuery textScaler), so no extra MediaQuery here — it would
+      // compound the factor twice.
+      child: widget.scrollable
+          ? Markdown(data: widget.data, selectable: true)
+          : MarkdownBody(data: widget.data, selectable: true),
     );
   }
 }

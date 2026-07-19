@@ -15,7 +15,9 @@ class AppState extends ChangeNotifier {
   String model = 'google/gemini-2.5-flash';
   double temperature = 0.4;
 
-  // Global text scale for rendered markdown (pinch to zoom, persisted).
+  /// Global text scale — applies to ALL text incl. Markdown (via the
+  /// MaterialApp MediaQuery builder). Change it by pinching on markdown
+  /// content or with the A−/A+ buttons; persisted across launches.
   double mdScale = 1.0;
 
   // Feature-specific model choices (same defaults as the web dashboard).
@@ -48,6 +50,13 @@ class AppState extends ChangeNotifier {
     scribeGenImages = p.getBool('scribeGenImages') ?? true;
     loadedPrefs = true;
     notifyListeners();
+  }
+
+  /// Bump the global text size by [delta] (e.g. ±0.1) and persist.
+  Future<void> bumpMdScale(double delta) async {
+    mdScale = double.parse((mdScale + delta).clamp(0.6, 3.0).toStringAsFixed(2));
+    notifyListeners();
+    await saveMdScale();
   }
 
   Future<void> saveSettings({

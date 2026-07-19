@@ -175,6 +175,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
           onTap: _pickModel,
         ),
         const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+                child: Text(
+                    'Text size: ${(state.mdScale * 100).round()}%')),
+            const TextSizeButtons(),
+          ],
+        ),
+        const SizedBox(height: 8),
         Text('Temperature: ${state.temperature.toStringAsFixed(1)}'),
         Slider(
           value: state.temperature,
