@@ -15,6 +15,9 @@ class AppState extends ChangeNotifier {
   String model = 'google/gemini-2.5-flash';
   double temperature = 0.4;
 
+  // Global text scale for rendered markdown (pinch to zoom, persisted).
+  double mdScale = 1.0;
+
   // Feature-specific model choices (same defaults as the web dashboard).
   String imagesModel = ''; // vision model for AI describe
   String scribeImageModel = 'google/gemini-2.5-flash-image';
@@ -37,6 +40,7 @@ class AppState extends ChangeNotifier {
     api.apiKey = p.getString('apiKey') ?? '';
     model = p.getString('model') ?? model;
     temperature = p.getDouble('temperature') ?? 0.4;
+    mdScale = p.getDouble('mdScale') ?? 1.0;
     imagesModel = p.getString('imagesModel') ?? '';
     scribeImageModel = p.getString('scribeImageModel') ?? scribeImageModel;
     scribeMode = p.getString('scribeMode') ?? scribeMode;
@@ -71,6 +75,18 @@ class AppState extends ChangeNotifier {
     await p.setString('model', model);
     await p.setDouble('temperature', temperature);
     notifyListeners();
+  }
+
+  /// Live-update the markdown text scale during a pinch (no disk write).
+  void previewMdScale(double v) {
+    mdScale = v;
+    notifyListeners();
+  }
+
+  /// Persist the markdown text scale (called when the pinch ends).
+  Future<void> saveMdScale() async {
+    final p = await SharedPreferences.getInstance();
+    await p.setDouble('mdScale', mdScale);
   }
 
   Future<void> setModel(String id) async {

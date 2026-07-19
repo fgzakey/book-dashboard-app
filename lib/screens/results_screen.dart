@@ -2,11 +2,11 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:provider/provider.dart';
 
 import '../app_state.dart';
 import '../main.dart';
+import '../md_zoom.dart';
 import '../models.dart';
 
 class ResultsScreen extends StatefulWidget {
@@ -151,7 +151,7 @@ class _ResultDetail extends StatelessWidget {
               child: Text(result.bookTitle!,
                   style: Theme.of(context).textTheme.titleSmall),
             ),
-          Expanded(child: Markdown(data: result.content, selectable: true)),
+          Expanded(child: ZoomMd(data: result.content, scrollable: true)),
         ],
       ),
     );

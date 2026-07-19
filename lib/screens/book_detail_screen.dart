@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:provider/provider.dart';
 
 import '../app_state.dart';
 import '../main.dart';
+import '../md_zoom.dart';
 import '../models.dart';
 import 'images_tab.dart';
 import 'scribe_tab.dart';
@@ -298,7 +298,7 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
                         ),
                         child: isUser
                             ? Text(m.content)
-                            : MarkdownBody(data: m.content, selectable: true),
+                            : ZoomMd(data: m.content),
                       ),
                     );
                   },
@@ -523,7 +523,7 @@ class _StreamingResultViewerState extends State<_StreamingResultViewer> {
           Expanded(
             child: _content.isEmpty && running
                 ? const Center(child: Text('Waiting for the model…'))
-                : Markdown(data: _content, selectable: true),
+                : ZoomMd(data: _content, scrollable: true),
           ),
         ],
       ),
