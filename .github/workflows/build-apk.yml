@@ -44,12 +44,17 @@ jobs:
 
       # Re-sign with the permanent keystore so every build has the SAME
       # signature — updates then install over the old version, no uninstall.
+      # (The secret is checked inside the script — the `secrets` context is
+      # not allowed in a step-level `if:`, which fails workflow validation.)
       - name: Sign APK with permanent key
-        if: ${{ secrets.KEYSTORE_B64 != '' }}
         env:
           KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
           KEYSTORE_PASS: ${{ secrets.KEYSTORE_PASS }}
         run: |
+          if [ -z "$KEYSTORE_B64" ]; then
+            echo "No KEYSTORE_B64 secret set — leaving the debug signature."
+            exit 0
+          fi
           echo "$KEYSTORE_B64" | base64 -d > /tmp/ks.jks
           SIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
           "$SIGNER" sign --ks /tmp/ks.jks --ks-pass "pass:$KEYSTORE_PASS" \

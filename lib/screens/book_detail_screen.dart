@@ -440,11 +440,11 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
                   ),
                   actions: const [TextSizeButtons(), SizedBox(width: 4)],
                 ),
-                // Rendered as Markdown (nice typography), not raw text.
-                body: Markdown(
-                  data: b.chapterText(i),
-                  selectable: true,
+                // Rendered as Markdown (nice typography), not raw text —
+                // ZoomMd also gives pinch-to-zoom + the app-wide text scale.
+                body: Padding(
                   padding: const EdgeInsets.all(16),
+                  child: ZoomMd(data: b.chapterText(i), scrollable: true),
                 ),
               ),
             ),
