@@ -152,6 +152,16 @@ class ApiClient {
     _json(res);
   }
 
+  // ---- Syntopical essays ----
+
+  Future<List<Essay>> listEssays() async {
+    final res = await http.get(_uri('/api/essays'), headers: _headers);
+    final j = _json(res);
+    return ((j['essays'] as List?) ?? [])
+        .map((e) => Essay.fromJson(Map<String, dynamic>.from(e)))
+        .toList();
+  }
+
   // ---- Results ----
 
   Future<List<SavedResult>> listResults({String query = '', String? bookId}) async {

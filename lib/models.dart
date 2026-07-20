@@ -311,3 +311,36 @@ const scribeArtStyles = [
   ScribeOption('retro', 'Retro-futurist poster'),
   ScribeOption('chalk', 'Chalkboard chiaroscuro'),
 ];
+
+/// A syntopical synthesis essay from the knowledge graph (served by
+/// /api/essays). The [body] is Markdown; [targetTitle] is the idea/theme the
+/// essay synthesizes across the library.
+class Essay {
+  final dynamic id;
+  final String slug;
+  final String title;
+  final String body;
+  final String? targetTitle;
+  final String? targetType;
+  final String? updatedAt;
+
+  Essay({
+    this.id,
+    required this.slug,
+    required this.title,
+    required this.body,
+    this.targetTitle,
+    this.targetType,
+    this.updatedAt,
+  });
+
+  factory Essay.fromJson(Map<String, dynamic> j) => Essay(
+        id: j['id'],
+        slug: j['slug']?.toString() ?? '',
+        title: j['title']?.toString() ?? 'Untitled essay',
+        body: j['body']?.toString() ?? '',
+        targetTitle: j['target_title']?.toString(),
+        targetType: j['target_type']?.toString(),
+        updatedAt: j['updated_at']?.toString(),
+      );
+}

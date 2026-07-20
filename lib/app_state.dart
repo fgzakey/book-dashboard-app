@@ -1,8 +1,30 @@
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'api.dart';
 import 'models.dart';
+
+/// Tolerantly parse a JSON object from a model reply (strips code fences /
+/// surrounding prose). Returns null if nothing parses.
+Map<String, dynamic>? _looseJson(String? content) {
+  if (content == null) return null;
+  var text = content.trim().replaceAll(RegExp(r'^```(?:json)?\s*', caseSensitive: false), '')
+      .replaceAll(RegExp(r'```\s*$'), '').trim();
+  try {
+    final v = jsonDecode(text);
+    if (v is Map) return Map<String, dynamic>.from(v);
+  } catch (_) {}
+  final m = RegExp(r'\{[\s\S]*\}').firstMatch(text);
+  if (m != null) {
+    try {
+      final v = jsonDecode(m.group(0)!);
+      if (v is Map) return Map<String, dynamic>.from(v);
+    } catch (_) {}
+  }
+  return null;
+}
 
 /// Prefilled server address — the deployed Space. Only the app password is
 /// needed on first run; override the URL in Settings to point elsewhere.
@@ -30,9 +52,12 @@ class AppState extends ChangeNotifier {
   List<Book> books = [];
   List<PromptTemplate> prompts = []; // builtins + custom, builtins first
   List<ModelInfo> models = [];
+  List<Essay> essays = [];
 
   bool loadingBooks = false;
   String? booksError;
+  bool loadingEssays = false;
+  String? essaysError;
 
   Future<void> loadPrefs() async {
     final p = await SharedPreferences.getInstance();
@@ -175,6 +200,65 @@ class AppState extends ChangeNotifier {
   Future<void> deleteBook(String bookId) async {
     await api.deleteBook(bookId);
     books.removeWhere((b) => b.bookId == bookId);
+    notifyListeners();
+  }
+
+  /// Generate a concise 1–2 sentence AI summary for every chapter, grounded
+  /// only in that chapter's text. Batched so long books stay under limits.
+  /// Mirrors the web dashboard's summarizeChapters. Returns how many got one.
+  Future<int> summarizeChapters(Book b,
+      {void Function(String status)? onProgress}) async {
+    if (b.chapters.isEmpty) return 0;
+    if (b.segments.isEmpty) {
+      throw ApiException('No text to summarize from.', 400);
+    }
+    final merged =
+        b.chapters.map((c) => Map<String, dynamic>.from(c as Map)).toList();
+    const batch = 12;
+    var done = 0;
+    for (var off = 0; off < merged.length; off += batch) {
+      final end = (off + batch).clamp(0, merged.length);
+      onProgress?.call('Summarizing ${off + 1}–$end of ${merged.length}…');
+      final slice = <Map<String, dynamic>>[];
+      for (var i = off; i < end; i++) {
+        slice.add({'i': i, 'title': merged[i]['title'], 'text': b.chapterText(i, maxChars: 3500)});
+      }
+      final prompt =
+          "For each chapter below, write a concise 1-2 sentence summary grounded ONLY in that chapter's text. "
+          'Return STRICT JSON only: {"summaries":[{"i":0,"summary":"..."}]}. Use the given "i" values. No prose, no code fences.\n\n'
+          '${slice.map((p) => 'Chapter ${p['i']} — ${p['title']}\nText: ${(p['text'] as String).isEmpty ? '(no text in range)' : p['text']}').join('\n\n')}';
+      final resp = await api.chat(
+        model: model,
+        messages: [{'role': 'user', 'content': prompt}],
+        temperature: 0.3,
+      );
+      final obj = _looseJson(resp.content);
+      for (final s in (obj?['summaries'] as List? ?? [])) {
+        final i = (s is Map ? s['i'] : null);
+        if (i is int && i >= 0 && i < merged.length) {
+          final sum = s['summary']?.toString() ?? '';
+          if (sum.isNotEmpty) merged[i]['summary'] = sum;
+        }
+      }
+    }
+    b.chapters = merged;
+    done = merged.where((c) => (c['summary'] ?? '').toString().isNotEmpty).length;
+    await saveBook(b);
+    return done;
+  }
+
+  // ---- Syntopical essays ----
+
+  Future<void> refreshEssays() async {
+    loadingEssays = true;
+    essaysError = null;
+    notifyListeners();
+    try {
+      essays = await api.listEssays();
+    } catch (e) {
+      essaysError = e.toString();
+    }
+    loadingEssays = false;
     notifyListeners();
   }
 

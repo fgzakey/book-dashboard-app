@@ -22,6 +22,8 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
   bool _sending = false;
   bool _loadingFull = false;
   String _streaming = ''; // live assistant output while a reply streams in
+  bool _summarizing = false;
+  String _summaryStatus = '';
 
   @override
   void initState() {
@@ -253,7 +255,7 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
               child: TabBarView(
                 children: [
                   _buildChat(state, b),
-                  _buildChapters(b),
+                  _buildChapters(state, b),
                   _buildText(b),
                   ImagesTab(book: b),
                   ScribeTab(book: b),
@@ -338,10 +340,73 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
     );
   }
 
-  Widget _buildChapters(Book b) {
+  Future<void> _summarizeChapters(AppState state, Book b) async {
+    if (b.segments.isEmpty) {
+      showSnack(context, 'Book text is still loading — try again in a moment.');
+      return;
+    }
+    setState(() {
+      _summarizing = true;
+      _summaryStatus = 'Summarizing…';
+    });
+    try {
+      final n = await state.summarizeChapters(b,
+          onProgress: (s) {
+        if (mounted) setState(() => _summaryStatus = s);
+      });
+      if (mounted) showSnack(context, 'Summarized $n chapter(s).');
+    } catch (e) {
+      if (mounted) showSnack(context, 'Summarize failed: $e');
+    }
+    if (mounted) {
+      setState(() {
+        _summarizing = false;
+        _summaryStatus = '';
+      });
+    }
+  }
+
+  Widget _buildChapters(AppState state, Book b) {
     if (b.chapters.isEmpty) {
       return const Center(child: Text('No chapters detected in this epub.'));
     }
+    final hasSummaries = b.chapters
+        .any((c) => ((c as Map)['summary'] ?? '').toString().isNotEmpty);
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  _summarizing
+                      ? _summaryStatus
+                      : '${b.chapters.length} chapters — tap one to read',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
+              FilledButton.tonalIcon(
+                icon: _summarizing
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Icon(Icons.auto_awesome, size: 18),
+                label: Text(hasSummaries ? 'Re-summarize' : 'Summarize'),
+                onPressed:
+                    _summarizing ? null : () => _summarizeChapters(state, b),
+              ),
+            ],
+          ),
+        ),
+        if (_summarizing) const LinearProgressIndicator(),
+        Expanded(child: _chapterList(b)),
+      ],
+    );
+  }
+
+  Widget _chapterList(Book b) {
     return ListView.separated(
       padding: const EdgeInsets.all(8),
       itemCount: b.chapters.length,
