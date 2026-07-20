@@ -55,7 +55,9 @@ jobs:
             echo "No KEYSTORE_B64 secret set — leaving the debug signature."
             exit 0
           fi
-          echo "$KEYSTORE_B64" | base64 -d > /tmp/ks.jks
+          # Strip CR/whitespace the secret may carry (PowerShell adds a
+          # trailing \r), which GNU base64 rejects as "invalid input".
+          printf '%s' "$KEYSTORE_B64" | tr -d '\r\n ' | base64 -d > /tmp/ks.jks
           SIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
           "$SIGNER" sign --ks /tmp/ks.jks --ks-pass "pass:$KEYSTORE_PASS" \
             --ks-key-alias dashboards \
