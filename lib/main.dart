@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 
 import 'app_state.dart';
 import 'screens/books_screen.dart';
-import 'screens/essays_screen.dart';
 import 'screens/prompts_screen.dart';
 import 'screens/results_screen.dart';
 import 'screens/settings_screen.dart';
@@ -83,7 +82,6 @@ class _HomeShellState extends State<HomeShell> {
       BooksScreen(),
       PromptsScreen(),
       ResultsScreen(),
-      EssaysScreen(),
       SettingsScreen(),
     ];
 
@@ -96,7 +94,6 @@ class _HomeShellState extends State<HomeShell> {
           NavigationDestination(icon: Icon(Icons.menu_book_outlined), label: 'Books'),
           NavigationDestination(icon: Icon(Icons.bolt_outlined), label: 'Prompts'),
           NavigationDestination(icon: Icon(Icons.inventory_2_outlined), label: 'Results'),
-          NavigationDestination(icon: Icon(Icons.auto_stories_outlined), label: 'Essays'),
           NavigationDestination(icon: Icon(Icons.settings_outlined), label: 'Settings'),
         ],
       ),
