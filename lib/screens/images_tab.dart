@@ -10,6 +10,7 @@ import 'package:share_plus/share_plus.dart';
 import '../app_state.dart';
 import '../main.dart';
 import '../models.dart';
+import '../md_toc.dart';
 
 /// "Images & Figures" — every image found inside the epub, mapped to the
 /// chapter where it appears. AI describe titles each image, transcribes any
@@ -235,8 +236,11 @@ class _ImagesTabState extends State<ImagesTab> {
         items: items,
       );
       final dir = await getTemporaryDirectory();
-      final file = File(
-          '${dir.path}/${(widget.book.title ?? 'book').replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '-')}-images.pdf');
+      final name = downloadName(
+          title: widget.book.title ?? 'Book',
+          kind: 'Images and Figures',
+          ext: 'pdf');
+      final file = File('${dir.path}/$name');
       await file.writeAsBytes(bytes);
       if (!mounted) return;
       await Share.shareXFiles([XFile(file.path, mimeType: 'application/pdf')],

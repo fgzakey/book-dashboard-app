@@ -6,8 +6,8 @@ import 'package:provider/provider.dart';
 
 import '../app_state.dart';
 import '../main.dart';
-import '../md_zoom.dart';
 import '../models.dart';
+import '../md_toc_view.dart';
 
 class ResultsScreen extends StatefulWidget {
   const ResultsScreen({super.key});
@@ -151,7 +151,7 @@ class _ResultDetail extends StatelessWidget {
               child: Text(result.bookTitle!,
                   style: Theme.of(context).textTheme.titleSmall),
             ),
-          Expanded(child: ZoomMd(data: result.content, scrollable: true)),
+          Expanded(child: MdWithToc(data: result.content)),
         ],
       ),
     );

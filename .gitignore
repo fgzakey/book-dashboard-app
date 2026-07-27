@@ -47,3 +47,8 @@ app.*.map.json
 # Gradle build outputs inside android/ (the root /build/ rule doesn't catch these)
 /android/build/
 /android/.gradle/
+
+# signing - never commit
+android/key.properties
+*.jks
+*.keystore

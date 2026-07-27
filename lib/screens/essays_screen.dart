@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:provider/provider.dart';
 
 import '../app_state.dart';
 import '../main.dart';
 import '../models.dart';
+import '../md_toc_view.dart';
 
 /// Syntopical synthesis essays — the library's living Adlerian essays that
 /// weave one idea/theme across every analyzed book. Read-only viewer.
@@ -122,10 +122,9 @@ class _EssayViewer extends StatelessWidget {
       ),
       body: essay.body.trim().isEmpty
           ? const Center(child: Text('This essay has no text yet.'))
-          : Markdown(
-              data: essay.body,
-              selectable: true,
+          : Padding(
               padding: const EdgeInsets.all(16),
+              child: MdWithToc(data: essay.body),
             ),
     );
   }

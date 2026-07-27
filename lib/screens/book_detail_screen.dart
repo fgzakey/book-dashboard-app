@@ -8,6 +8,7 @@ import '../md_zoom.dart';
 import '../models.dart';
 import 'images_tab.dart';
 import 'scribe_tab.dart';
+import '../md_toc_view.dart';
 
 class BookDetailScreen extends StatefulWidget {
   final String bookId;
@@ -593,7 +594,7 @@ class _StreamingResultViewerState extends State<_StreamingResultViewer> {
           Expanded(
             child: _content.isEmpty && running
                 ? const Center(child: Text('Waiting for the model…'))
-                : ZoomMd(data: _content, scrollable: true),
+                : MdWithToc(data: _content),
           ),
         ],
       ),

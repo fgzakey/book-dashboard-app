@@ -10,6 +10,7 @@ import 'package:webview_flutter/webview_flutter.dart';
 import '../app_state.dart';
 import '../models.dart';
 import '../scribe_svg.dart';
+import '../md_toc.dart';
 
 /// "Visual Scribe" — turns the book (or one chapter) into a hand-drawn board:
 /// a whiteboard graphic recording, a memory palace, or a knowledge map, with
@@ -176,8 +177,8 @@ class _ScribeTabState extends State<ScribeTab> {
 
   Future<void> _shareSvg(String svg, String name) async {
     final dir = await getTemporaryDirectory();
-    final safe = name.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '-');
-    final file = File('${dir.path}/$safe.svg');
+    final safe = downloadName(title: name, kind: 'Whiteboard', ext: 'svg');
+    final file = File('${dir.path}/$safe');
     await file.writeAsString(svg);
     await Share.shareXFiles([XFile(file.path, mimeType: 'image/svg+xml')],
         subject: name);
@@ -185,8 +186,8 @@ class _ScribeTabState extends State<ScribeTab> {
 
   Future<void> _shareGraphJson(Map<String, dynamic> graph, String name) async {
     final dir = await getTemporaryDirectory();
-    final safe = name.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '-');
-    final file = File('${dir.path}/$safe-graph.json');
+    final safe = downloadName(title: name, kind: 'Graph Export', ext: 'json');
+    final file = File('${dir.path}/$safe');
     await file.writeAsString(const JsonEncoder.withIndent('  ').convert(graph));
     await Share.shareXFiles([XFile(file.path, mimeType: 'application/json')],
         subject: '$name — knowledge graph');
