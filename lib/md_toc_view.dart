@@ -148,7 +148,14 @@ class _MdWithTocState extends State<MdWithToc> {
 
   Widget _sectionView(BuildContext context, MdSection s, bool showBack) {
     final body = MarkdownBody(data: s.body, selectable: true);
-    if (s.heading == null || !showBack) return body;
+    if (s.heading == null) return body;
+    final heading = MarkdownBody(data: s.headingLine, selectable: true);
+    if (!showBack) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [heading, body],
+      );
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -166,6 +173,7 @@ class _MdWithTocState extends State<MdWithToc> {
             ),
           ),
         ),
+        heading,
         body,
       ],
     );
