@@ -7,6 +7,7 @@ import '../main.dart';
 import '../md_zoom.dart';
 import '../models.dart';
 import 'images_tab.dart';
+import 'past_results.dart';
 import 'scribe_tab.dart';
 import '../md_toc_view.dart';
 
@@ -26,12 +27,34 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
   bool _summarizing = false;
   String _summaryStatus = '';
 
+  // Saved results for THIS book (the global Results section, scoped).
+  List<SavedResult> _results = [];
+  bool _resultsLoading = false;
+  String? _resultsError;
+
   @override
   void initState() {
     super.initState();
     // The library list rows are light — fetch the full record once on open
     // (text, segments, images, scribes).
     Future.microtask(_ensureFull);
+    Future.microtask(_loadResults);
+  }
+
+  Future<void> _loadResults() async {
+    if (!mounted) return;
+    setState(() {
+      _resultsLoading = true;
+      _resultsError = null;
+    });
+    try {
+      final rs =
+          await context.read<AppState>().api.listResults(bookId: widget.bookId);
+      if (mounted) setState(() => _results = rs);
+    } catch (e) {
+      if (mounted) setState(() => _resultsError = e.toString());
+    }
+    if (mounted) setState(() => _resultsLoading = false);
   }
 
   Future<void> _ensureFull() async {
@@ -156,6 +179,7 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
         ),
       ),
     );
+    await _loadResults(); // the new result shows up in the Chat tab panel
   }
 
   /// Returns null = whole book, [] = cancelled, otherwise chapter indexes.
@@ -273,6 +297,14 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
     final showStream = _sending && _streaming.isNotEmpty;
     return Column(
       children: [
+        // Past prompt results for THIS book, above the conversation — same
+        // convention as the web dashboard (results first, controls below).
+        PastResultsPanel(
+          results: _results,
+          loading: _resultsLoading,
+          error: _resultsError,
+          onRefresh: _loadResults,
+        ),
         Expanded(
           child: b.chat.isEmpty && !showStream
               ? const Center(child: Text('Ask anything about this book.'))
