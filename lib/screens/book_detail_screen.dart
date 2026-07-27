@@ -48,9 +48,17 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
       _resultsError = null;
     });
     try {
-      final rs =
-          await context.read<AppState>().api.listResults(bookId: widget.bookId);
-      if (mounted) setState(() => _results = rs);
+      final state = context.read<AppState>();
+      // The prompt list defines the order of this tab, so make sure it's loaded.
+      if (state.prompts.isEmpty) {
+        try {
+          await state.refreshPrompts();
+        } catch (_) {}
+      }
+      final rs = await state.api.listResults(bookId: widget.bookId);
+      if (mounted) {
+        setState(() => _results = sortByPromptOrder(rs, state.prompts));
+      }
     } catch (e) {
       if (mounted) setState(() => _resultsError = e.toString());
     }

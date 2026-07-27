@@ -14,6 +14,48 @@ String fmtWhen(String? iso) {
   return '${l.year}-${two(l.month)}-${two(l.day)} ${two(l.hour)}:${two(l.minute)}';
 }
 
+/// Order saved results the way the Prompts list is ordered — built-ins first
+/// (Master Prompt (Adler Edition) at the top), then custom prompts; anything
+/// whose prompt is no longer in the list falls to the end. Within one prompt,
+/// newest first.
+///
+/// Saved names carry a language tag ("… (Spanish)"), so a result is matched to
+/// its prompt by exact name first, then by the longest name it starts with.
+List<SavedResult> sortByPromptOrder(
+    List<SavedResult> results, List<PromptTemplate> prompts) {
+  const unknown = 1 << 30;
+
+  int rankOf(String? name) {
+    final n = (name ?? '').trim();
+    if (n.isEmpty) return unknown;
+    var best = unknown;
+    var bestLen = -1;
+    for (var i = 0; i < prompts.length; i++) {
+      final pn = prompts[i].name.trim();
+      if (pn.isEmpty) continue;
+      if (n == pn) return i;
+      if (n.startsWith(pn) && pn.length > bestLen) {
+        best = i;
+        bestLen = pn.length;
+      }
+    }
+    return best;
+  }
+
+  DateTime when(SavedResult r) =>
+      DateTime.tryParse(r.createdAt ?? '') ??
+      DateTime.fromMillisecondsSinceEpoch(0);
+
+  final sorted = [...results];
+  sorted.sort((a, b) {
+    final ra = rankOf(a.promptName);
+    final rb = rankOf(b.promptName);
+    if (ra != rb) return ra.compareTo(rb);
+    return when(b).compareTo(when(a));
+  });
+  return sorted;
+}
+
 /// The **Results** tab of a single book — the same saved results as the
 /// global Results section, filtered to this book. Sits between Chapters
 /// and the Text tab, mirroring the web dashboard's "Past results for
@@ -49,7 +91,7 @@ class PastResultsTab extends StatelessWidget {
                       ? 'Loading saved results…'
                       : results.isEmpty
                           ? 'No saved results for $scopeLabel yet.'
-                          : '${results.length} saved result${results.length == 1 ? '' : 's'} for $scopeLabel — tap one to read',
+                          : '${results.length} saved result${results.length == 1 ? '' : 's'} for $scopeLabel — in Prompts order, tap one to read',
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
               ),
