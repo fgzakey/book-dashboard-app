@@ -252,7 +252,7 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
     }
 
     return DefaultTabController(
-      length: 5,
+      length: 6,
       child: Scaffold(
         appBar: AppBar(
           title: Text(b.title ?? b.bookId,
@@ -260,6 +260,7 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
           bottom: const TabBar(isScrollable: true, tabs: [
             Tab(text: 'Chat'),
             Tab(text: 'Chapters'),
+            Tab(text: 'Results'),
             Tab(text: 'Text'),
             Tab(text: 'Images'),
             Tab(text: 'Scribe'),
@@ -281,6 +282,14 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
                 children: [
                   _buildChat(state, b),
                   _buildChapters(state, b),
+                  // Past prompt results for THIS book — the global Results
+                  // section, scoped, between Chapters and Text.
+                  PastResultsTab(
+                    results: _results,
+                    loading: _resultsLoading,
+                    error: _resultsError,
+                    onRefresh: _loadResults,
+                  ),
                   _buildText(b),
                   ImagesTab(book: b),
                   ScribeTab(book: b),
@@ -297,14 +306,6 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
     final showStream = _sending && _streaming.isNotEmpty;
     return Column(
       children: [
-        // Past prompt results for THIS book, above the conversation — same
-        // convention as the web dashboard (results first, controls below).
-        PastResultsPanel(
-          results: _results,
-          loading: _resultsLoading,
-          error: _resultsError,
-          onRefresh: _loadResults,
-        ),
         Expanded(
           child: b.chat.isEmpty && !showStream
               ? const Center(child: Text('Ask anything about this book.'))

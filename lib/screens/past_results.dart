@@ -14,18 +14,18 @@ String fmtWhen(String? iso) {
   return '${l.year}-${two(l.month)}-${two(l.day)} ${two(l.hour)}:${two(l.minute)}';
 }
 
-/// "Past results for this book" — the same saved results as the global
-/// Results section, filtered to one book and shown at the top of its Chat
-/// tab. Mirrors the web dashboard's layout convention (past results first,
-/// generation controls below). Collapsed by default so chat stays the focus.
-class PastResultsPanel extends StatelessWidget {
+/// The **Results** tab of a single book — the same saved results as the
+/// global Results section, filtered to this book. Sits between Chapters
+/// and the Text tab, mirroring the web dashboard's "Past results for
+/// this book".
+class PastResultsTab extends StatelessWidget {
   final List<SavedResult> results;
   final bool loading;
   final String? error;
   final Future<void> Function() onRefresh;
   final String scopeLabel; // e.g. 'this book'
 
-  const PastResultsPanel({
+  const PastResultsTab({
     super.key,
     required this.results,
     required this.loading,
@@ -37,36 +37,56 @@ class PastResultsPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Card(
-      margin: const EdgeInsets.fromLTRB(8, 8, 8, 0),
-      clipBehavior: Clip.antiAlias,
-      child: ExpansionTile(
-        leading: const Icon(Icons.inventory_2_outlined),
-        title: Text(
-          loading && results.isEmpty
-              ? 'Past results for $scopeLabel…'
-              : 'Past results for $scopeLabel (${results.length})',
-          style: const TextStyle(fontWeight: FontWeight.w600),
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 8, 4, 4),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  loading && results.isEmpty
+                      ? 'Loading saved results…'
+                      : results.isEmpty
+                          ? 'No saved results for $scopeLabel yet.'
+                          : '${results.length} saved result${results.length == 1 ? '' : 's'} for $scopeLabel — tap one to read',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
+              IconButton(
+                tooltip: 'Reload',
+                icon: const Icon(Icons.refresh),
+                onPressed: loading ? null : () => onRefresh(),
+              ),
+            ],
+          ),
         ),
-        subtitle: error != null
-            ? Text(error!,
-                style: TextStyle(color: scheme.error),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis)
-            : null,
-        children: [
-          if (loading) const LinearProgressIndicator(),
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxHeight: 300),
+        if (loading) const LinearProgressIndicator(),
+        if (error != null)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Text(error!, style: TextStyle(color: scheme.error)),
+          ),
+        Expanded(
+          child: RefreshIndicator(
+            onRefresh: onRefresh,
             child: results.isEmpty
-                ? const ListTile(
-                    dense: true,
-                    title: Text(
-                        'No saved results yet — run a prompt with the ⚡ button, then Save.'),
+                ? ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    children: const [
+                      Padding(
+                        padding: EdgeInsets.all(32),
+                        child: Text(
+                          'Run a standardized prompt with the ⚡ button, then Save — '
+                          'every saved result for book shows up here and in the global Results section.',
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ],
                   )
                 : ListView.separated(
-                    shrinkWrap: true,
-                    padding: EdgeInsets.zero,
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.only(bottom: 24),
                     itemCount: results.length,
                     separatorBuilder: (_, __) => const Divider(height: 1),
                     itemBuilder: (context, i) {
@@ -78,14 +98,13 @@ class PastResultsPanel extends StatelessWidget {
                         if (r.cost != null && r.cost!.isNotEmpty) r.cost!,
                       ].where((s) => s.isNotEmpty).join(' · ');
                       return ListTile(
-                        dense: true,
                         leading: const Icon(Icons.description_outlined),
                         title: Text(r.promptName ?? 'Result',
                             maxLines: 1, overflow: TextOverflow.ellipsis),
                         subtitle: meta.isEmpty
                             ? null
                             : Text(meta,
-                                maxLines: 1, overflow: TextOverflow.ellipsis),
+                                maxLines: 2, overflow: TextOverflow.ellipsis),
                         onTap: () => Navigator.push(
                           context,
                           MaterialPageRoute(
@@ -95,16 +114,8 @@ class PastResultsPanel extends StatelessWidget {
                     },
                   ),
           ),
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton.icon(
-              icon: const Icon(Icons.refresh, size: 18),
-              label: const Text('Reload'),
-              onPressed: loading ? null : () => onRefresh(),
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
