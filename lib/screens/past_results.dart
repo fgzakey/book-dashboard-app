@@ -14,32 +14,29 @@ String fmtWhen(String? iso) {
   return '${l.year}-${two(l.month)}-${two(l.day)} ${two(l.hour)}:${two(l.minute)}';
 }
 
-/// Order saved results the way the Prompts list is ordered — built-ins first
-/// (Master Prompt (Adler Edition) at the top), then custom prompts; anything
-/// whose prompt is no longer in the list falls to the end. Within one prompt,
-/// newest first.
+/// Order saved results exactly the way the web dashboard does
+/// (`sortByPromptOrder` in app/page.js + app/videos-app.js): by position in
+/// the BUILT-IN prompt list — Master Prompt (Adler Edition) first — then, for
+/// anything not from a built-in prompt (custom prompts, "Images & Figures",
+/// "Slides & Visuals"), oldest first at the end.
 ///
-/// Saved names carry a language tag ("… (Spanish)"), so a result is matched to
-/// its prompt by exact name first, then by the longest name it starts with.
+/// [builtins] must be the raw defaults from /api/prompts/defaults, NOT the
+/// merged prompt list: editing a built-in stores it as a DB prompt, which the
+/// merge appends at the end — ranking against that would sink the Adler
+/// prompt to the bottom.
+///
+/// Saved names carry a language tag ("… (Spanish)"), hence the `startsWith`.
 List<SavedResult> sortByPromptOrder(
-    List<SavedResult> results, List<PromptTemplate> prompts) {
-  const unknown = 1 << 30;
-
-  int rankOf(String? name) {
+    List<SavedResult> results, List<PromptTemplate> builtins) {
+  int idx(String? name) {
     final n = (name ?? '').trim();
-    if (n.isEmpty) return unknown;
-    var best = unknown;
-    var bestLen = -1;
-    for (var i = 0; i < prompts.length; i++) {
-      final pn = prompts[i].name.trim();
-      if (pn.isEmpty) continue;
-      if (n == pn) return i;
-      if (n.startsWith(pn) && pn.length > bestLen) {
-        best = i;
-        bestLen = pn.length;
-      }
+    if (n.isEmpty) return 999;
+    for (var i = 0; i < builtins.length; i++) {
+      final p = builtins[i].name.trim();
+      if (p.isEmpty) continue;
+      if (n == p || n.startsWith('$p (')) return i;
     }
-    return best;
+    return 999;
   }
 
   DateTime when(SavedResult r) =>
@@ -48,10 +45,9 @@ List<SavedResult> sortByPromptOrder(
 
   final sorted = [...results];
   sorted.sort((a, b) {
-    final ra = rankOf(a.promptName);
-    final rb = rankOf(b.promptName);
-    if (ra != rb) return ra.compareTo(rb);
-    return when(b).compareTo(when(a));
+    final d = idx(a.promptName) - idx(b.promptName);
+    if (d != 0) return d;
+    return when(a).compareTo(when(b)); // oldest first, same as the web
   });
   return sorted;
 }

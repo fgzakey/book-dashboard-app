@@ -51,6 +51,10 @@ class AppState extends ChangeNotifier {
 
   List<Book> books = [];
   List<PromptTemplate> prompts = []; // builtins + custom, builtins first
+  // The raw built-ins from /api/prompts/defaults, in DEFAULT_PROMPTS
+  // order. Kept separate from [prompts] because the merge moves an
+  // edited built-in to the end — results are ordered against THIS list.
+  List<PromptTemplate> defaultPrompts = [];
   List<ModelInfo> models = [];
   List<Essay> essays = [];
 
@@ -266,6 +270,7 @@ class AppState extends ChangeNotifier {
 
   Future<void> refreshPrompts() async {
     final defaults = await api.listDefaultPrompts();
+    defaultPrompts = defaults;
     List<PromptTemplate> custom = [];
     try {
       custom = await api.listPrompts();
