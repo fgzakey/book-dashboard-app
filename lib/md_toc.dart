@@ -76,11 +76,17 @@ List<MdSection> splitSections(String markdown) {
   return out;
 }
 
-/// Index of the section holding the document's TITLE heading — a leading H1
-/// with nothing but blank lines before it — or -1 when there is none.
+final RegExp _htmlComment = RegExp(r'<!--[\s\S]*?-->');
+
+/// Index of the section holding the document's TITLE heading, or -1.
 ///
-/// Web parity: `decorateHeadings` in phils-library/lib/mdtoc.js skips the same
-/// heading, so a document title is never a contents entry on any surface.
+/// A title is a LEADING H1 that is BARE: nothing but comments and whitespace
+/// between it and the next heading. An H1 that has a body is a real section —
+/// a Master Prompt QUESTION whose sub-points are bullets rather than headings —
+/// and dropping it would silently lose QUESTION 1 from the contents.
+///
+/// Web parity: `decorateHeadings` in phils-library/lib/mdtoc.js applies the
+/// identical test, so a title is never a contents entry on any surface.
 int leadingTitleIndex(List<MdSection> sections) {
   for (var i = 0; i < sections.length; i++) {
     final h = sections[i].heading;
@@ -88,7 +94,8 @@ int leadingTitleIndex(List<MdSection> sections) {
       if (sections[i].body.trim().isNotEmpty) return -1; // real text came first
       continue;
     }
-    return h.level == 1 ? i : -1;
+    if (h.level != 1) return -1;
+    return sections[i].body.replaceAll(_htmlComment, '').trim().isEmpty ? i : -1;
   }
   return -1;
 }
@@ -138,7 +145,10 @@ String downloadName({
 }
 
 /// Guarantees the document opens with an H1 equal to its filename stem.
-/// An existing, different leading H1 is DEMOTED to H2 rather than discarded.
+/// An existing, different leading H1 that is the document's TITLE is DEMOTED to
+/// H2 rather than discarded. When the document has SEVERAL H1s they are
+/// sections (the Master Prompt's four QUESTIONs) — demoting only the first
+/// would break the hierarchy, so they are all left alone.
 String withTitleHeading(String md, String title) {
   final t = title.trim();
   if (t.isEmpty) return md;
@@ -147,8 +157,12 @@ String withTitleHeading(String md, String title) {
   if (m != null) {
     final existing = m.group(1)!.trim();
     if (existing == t) return s;
-    final nl = m.group(2)!.isEmpty ? '\n' : m.group(2)!;
-    return '# $t\n\n## $existing$nl${s.substring(m.end)}';
+    final soleH1 =
+        RegExp(r'^#[ \t]+', multiLine: true).allMatches(s).length == 1;
+    if (soleH1) {
+      final nl = m.group(2)!.isEmpty ? '\n' : m.group(2)!;
+      return '# $t\n\n## $existing$nl${s.substring(m.end)}';
+    }
   }
   return '# $t\n\n$s';
 }
