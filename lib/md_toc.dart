@@ -76,6 +76,23 @@ List<MdSection> splitSections(String markdown) {
   return out;
 }
 
+/// Index of the section holding the document's TITLE heading — a leading H1
+/// with nothing but blank lines before it — or -1 when there is none.
+///
+/// Web parity: `decorateHeadings` in phils-library/lib/mdtoc.js skips the same
+/// heading, so a document title is never a contents entry on any surface.
+int leadingTitleIndex(List<MdSection> sections) {
+  for (var i = 0; i < sections.length; i++) {
+    final h = sections[i].heading;
+    if (h == null) {
+      if (sections[i].body.trim().isNotEmpty) return -1; // real text came first
+      continue;
+    }
+    return h.level == 1 ? i : -1;
+  }
+  return -1;
+}
+
 List<Heading> extractHeadings(String markdown) => splitSections(markdown)
     .where((s) => s.heading != null)
     .map((s) => s.heading!)

@@ -39,6 +39,9 @@ class _MdWithTocState extends State<MdWithToc> {
   // Shallowest heading level in this document — indentation is relative to
   // it, so an H2-only doc looks exactly as it did before H1 was included.
   int _minLevel = 2;
+  // Section index of the document title (a leading H1), or -1 — listed
+  // nowhere in the contents, exactly as the web viewer does it.
+  int _titleIndex = -1;
   bool _open = false; // Contents card starts collapsed.
   double _startScale = 1.0;
 
@@ -59,7 +62,11 @@ class _MdWithTocState extends State<MdWithToc> {
         .where((s) => s.heading != null || s.body.trim().isNotEmpty)
         .toList();
     _keys = [for (final _ in _sections) GlobalKey()];
-    _headings = [for (final s in _sections) if (s.heading != null) s.heading!];
+    _titleIndex = leadingTitleIndex(_sections);
+    _headings = [
+      for (var i = 0; i < _sections.length; i++)
+        if (i != _titleIndex && _sections[i].heading != null) _sections[i].heading!
+    ];
     _minLevel = _headings.isEmpty
         ? 2
         : _headings.map((h) => h.level).reduce((a, b) => a < b ? a : b);
@@ -132,7 +139,7 @@ class _MdWithTocState extends State<MdWithToc> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   for (var i = 0; i < _sections.length; i++)
-                    if (_sections[i].heading != null)
+                    if (i != _titleIndex && _sections[i].heading != null)
                       _tocEntry(context, _sections[i].heading!, _keys[i]),
                 ],
               ),
