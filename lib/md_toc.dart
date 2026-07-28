@@ -88,6 +88,7 @@ final RegExp _htmlComment = RegExp(r'<!--[\s\S]*?-->');
 /// Web parity: `decorateHeadings` in phils-library/lib/mdtoc.js applies the
 /// identical test, so a title is never a contents entry on any surface.
 int leadingTitleIndex(List<MdSection> sections) {
+  var idx = -1;
   for (var i = 0; i < sections.length; i++) {
     final h = sections[i].heading;
     if (h == null) {
@@ -95,15 +96,116 @@ int leadingTitleIndex(List<MdSection> sections) {
       continue;
     }
     if (h.level != 1) return -1;
-    return sections[i].body.replaceAll(_htmlComment, '').trim().isEmpty ? i : -1;
+    if (sections[i].body.replaceAll(_htmlComment, '').trim().isNotEmpty) {
+      return -1; // has a body of its own: a section, not a title
+    }
+    idx = i;
+    break;
   }
-  return -1;
+  if (idx < 0) return -1;
+
+  // Bare is not enough: an H1 whose next heading is DEEPER owns that
+  // subsection (a QUESTION with its sections promoted underneath), so it is a
+  // section. It is a title only when it owns nothing — the next heading is
+  // another H1 — or when it is the document's sole H1.
+  var nextLevel = 0;
+  var h1s = 0;
+  for (var i = 0; i < sections.length; i++) {
+    final h = sections[i].heading;
+    if (h == null) continue;
+    if (h.level == 1) h1s++;
+    if (i > idx && nextLevel == 0) nextLevel = h.level;
+  }
+  return (h1s == 1 || nextLevel == 1) ? idx : -1;
 }
 
 List<Heading> extractHeadings(String markdown) => splitSections(markdown)
     .where((s) => s.heading != null)
     .map((s) => s.heading!)
     .toList();
+
+// ------------------------------------------------------------ label bullets
+
+/// Models answer the Master Prompt's "four top-level headings" with H1s, but
+/// often write the sections INSIDE them as bullets:
+///
+///     # QUESTION 1 — WHAT IS THIS BOOK ABOUT AS A WHOLE?
+///     - CLASSIFICATION: This is a theoretical book...
+///     - SUMMARY: ...
+///
+/// There is then no second level for a table of contents to show. This turns
+/// such a bullet into a real heading one level below the heading it sits
+/// under, so every surface (apps, dashboard, packaged .md) gets the same
+/// two-level structure without re-running anything. Display only — what is
+/// stored in the database never changes.
+///
+/// Deliberately narrow, so ordinary bullets are never touched: the bullet must
+/// be unindented, its label ALL-CAPS (letters only — "IDEA 1:" is skipped),
+/// 1-5 words, 3-48 characters, and followed by a colon. A document needs at
+/// least two of them before any promotion happens. Mirrors
+/// `promoteLabelBullets` in phils-library/lib/mdtoc.js.
+final RegExp _labelBulletRe = RegExp(
+  r"^[-*+][ \t]+(?:\*\*|__)?(\p{Lu}[\p{Lu}'’&/-]*(?:[ \t]+\p{Lu}[\p{Lu}'’&/-]*){0,4})(?:\*\*|__)?[ \t]*:[ \t]*(.*)$",
+  unicode: true,
+);
+final RegExp _atxRe = RegExp(r'^(#{1,4})[ \t]+\S');
+
+RegExpMatch? _labelMatch(String line) {
+  final m = _labelBulletRe.firstMatch(line);
+  if (m == null) return null;
+  final label = m.group(1)!.trim();
+  if (label.length < 3 || label.length > 48) return null;
+  return m;
+}
+
+String promoteLabelBullets(String md) {
+  if (md.isEmpty) return md;
+  final lines = md.split('\n');
+
+  var inFence = false;
+  var hits = 0;
+  for (final line in lines) {
+    if (_fenceRe.hasMatch(line)) {
+      inFence = !inFence;
+      continue;
+    }
+    if (!inFence && _labelMatch(line) != null) hits++;
+  }
+  if (hits < 2) return md; // a lone "NOTE: ..." bullet is just a bullet
+
+  final out = <String>[];
+  var level = 2; // sections sit under an H2 when the document has no headings
+  inFence = false;
+  for (final line in lines) {
+    if (_fenceRe.hasMatch(line)) {
+      inFence = !inFence;
+      out.add(line);
+      continue;
+    }
+    if (!inFence) {
+      final h = _atxRe.firstMatch(line);
+      if (h != null) {
+        level = h.group(1)!.length;
+        out.add(line);
+        continue;
+      }
+      final lb = _labelMatch(line);
+      if (lb != null) {
+        if (out.isNotEmpty && out.last.trim().isNotEmpty) out.add('');
+        final depth = level + 1 > 4 ? 4 : level + 1;
+        out.add('${'#' * depth} ${lb.group(1)!.trim()}');
+        final rest = lb.group(2)!.trim();
+        if (rest.isNotEmpty) {
+          out.add('');
+          out.add(rest);
+        }
+        continue;
+      }
+    }
+    out.add(line);
+  }
+  return out.join('\n');
+}
 
 // ---------------------------------------------------------------- filenames
 

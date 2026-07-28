@@ -58,7 +58,9 @@ class _MdWithTocState extends State<MdWithToc> {
   }
 
   void _parse() {
-    _sections = splitSections(widget.data)
+    // Bullet-style sections become real sub-headings first, so the contents
+    // card has a second level (see promoteLabelBullets).
+    _sections = splitSections(promoteLabelBullets(widget.data))
         .where((s) => s.heading != null || s.body.trim().isNotEmpty)
         .toList();
     _keys = [for (final _ in _sections) GlobalKey()];
