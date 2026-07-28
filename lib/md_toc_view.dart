@@ -8,7 +8,7 @@ import 'md_toc.dart';
 /// Markdown viewer with a bidirectional table of contents — the Dart
 /// counterpart of the web dashboard's MdWithToc (app/md-toc.js).
 ///
-/// The document is split at H2–H4 boundaries ([splitSections]); each slice is
+/// The document is split at H1–H4 boundaries ([splitSections]); each slice is
 /// its own MarkdownBody in one scroll view and carries a GlobalKey. Tapping an
 /// entry in the collapsible "Contents" card scrolls to that heading; each
 /// heading shows a small "↑ Contents" affordance back to the card. The card is
@@ -36,6 +36,9 @@ class _MdWithTocState extends State<MdWithToc> {
   late List<MdSection> _sections;
   late List<GlobalKey> _keys;
   late List<Heading> _headings;
+  // Shallowest heading level in this document — indentation is relative to
+  // it, so an H2-only doc looks exactly as it did before H1 was included.
+  int _minLevel = 2;
   bool _open = false; // Contents card starts collapsed.
   double _startScale = 1.0;
 
@@ -57,6 +60,9 @@ class _MdWithTocState extends State<MdWithToc> {
         .toList();
     _keys = [for (final _ in _sections) GlobalKey()];
     _headings = [for (final s in _sections) if (s.heading != null) s.heading!];
+    _minLevel = _headings.isEmpty
+        ? 2
+        : _headings.map((h) => h.level).reduce((a, b) => a < b ? a : b);
   }
 
   Future<void> _scrollTo(GlobalKey key) async {
@@ -140,7 +146,8 @@ class _MdWithTocState extends State<MdWithToc> {
     return InkWell(
       onTap: () => _scrollTo(key),
       child: Padding(
-        padding: EdgeInsets.fromLTRB(12.0 + (h.level - 2) * 16.0, 6, 12, 6),
+        padding:
+            EdgeInsets.fromLTRB(12.0 + (h.level - _minLevel) * 16.0, 6, 12, 6),
         child: Text(h.text, style: Theme.of(context).textTheme.bodyMedium),
       ),
     );

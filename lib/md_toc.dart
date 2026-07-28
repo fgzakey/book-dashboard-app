@@ -25,7 +25,7 @@ class MdSection {
 final RegExp _nonAlnum = RegExp(r'[^\p{L}\p{N}]+', unicode: true);
 final RegExp _trimDashes = RegExp(r'^-+|-+$');
 final RegExp _contentsRe = RegExp(r'^(table of )?contents$', caseSensitive: false);
-final RegExp _headingRe = RegExp(r'^(#{2,4})[ \t]+(.+?)[ \t]*$');
+final RegExp _headingRe = RegExp(r'^(#{1,4})[ \t]+(.+?)[ \t]*$');
 final RegExp _fenceRe = RegExp(r'^\s*(```|~~~)');
 
 /// Lowercase kebab slug, deduped: first wins, then -2, -3 ...
@@ -37,7 +37,11 @@ String headingSlug(String text, Map<String, int> seen) {
   return n > 1 ? '$base-$n' : base;
 }
 
-/// Splits a document into a preamble plus one section per H2-H4 heading.
+/// Splits a document into a preamble plus one section per H1-H4 heading.
+/// H1 counts because the Master Prompt asks for "four top-level headings"
+/// and models answer with `# QUESTION 1 …`; ignoring H1 dropped those four
+/// from every contents list, and hid the card entirely on runs that put
+/// every heading at H1.
 /// Headings inside fenced code blocks are ignored, as is a "Contents" heading.
 List<MdSection> splitSections(String markdown) {
   final lines = markdown.split('\n');
