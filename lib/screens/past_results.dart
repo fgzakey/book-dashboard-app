@@ -1,9 +1,40 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../main.dart';
+import '../md_toc.dart';
 import '../md_toc_view.dart';
 import '../models.dart';
+
+/// One saved result as the snake_case row shape [allResultsMd] and
+/// [newestDate] expect — the same keys the API returns.
+Map<String, dynamic> resultRow(SavedResult r) => {
+      'prompt_name': r.promptName,
+      'created_at': r.createdAt,
+        'scope': r.scope,
+      'model': r.model,
+      'cost': r.cost,
+      'content': r.content,
+    };
+
+/// Write a packaged .md to a temp file and hand it to the share sheet — the
+/// app's equivalent of the dashboard's download button.
+Future<void> shareMarkdown(
+    BuildContext context, String markdown, String filename) async {
+  try {
+    final dir = await getTemporaryDirectory();
+    final file = File('${dir.path}/$filename');
+    await file.writeAsString(markdown);
+    await Share.shareXFiles([XFile(file.path, mimeType: 'text/markdown')],
+        subject: filename);
+  } catch (e) {
+    if (context.mounted) showSnack(context, 'Could not export: $e');
+  }
+}
 
 /// Human-friendly local timestamp for a Postgres `created_at` string.
 String fmtWhen(String? iso) {
@@ -62,6 +93,10 @@ class PastResultsTab extends StatelessWidget {
   final String? error;
   final Future<void> Function() onRefresh;
   final String scopeLabel; // e.g. 'this book'
+  // Identity of the book these results belong to — used for the export
+  // filename and the provenance block, exactly as the dashboard does it.
+  final String sourceTitle;
+  final String? sourceAuthor;
 
   const PastResultsTab({
     super.key,
@@ -70,7 +105,34 @@ class PastResultsTab extends StatelessWidget {
     required this.onRefresh,
     this.error,
     this.scopeLabel = 'this book',
+    this.sourceTitle = '',
+    this.sourceAuthor,
   });
+
+  String get _sourceLine =>
+      '$sourceTitle${(sourceAuthor ?? '').trim().isEmpty ? '' : ' — $sourceAuthor'} (book)';
+
+  /// All results for this book as one document, ordered as shown — the
+  /// dashboard's "⬇ All results .md".
+  Future<void> _exportAll(BuildContext context) async {
+    final rows = results.map(resultRow).toList();
+    final md = packageMd(
+      allResultsMd(rows, title: sourceTitle),
+      title: '$sourceTitle — Extracted knowledge & wisdom',
+      models: [for (final r in results) r.model ?? ''],
+      sources: [_sourceLine],
+      kind: 'All prompt results',
+    );
+    await shareMarkdown(
+      context,
+      md,
+      downloadName(
+          title: sourceTitle.isEmpty ? 'Book' : sourceTitle,
+          kind: 'All Results',
+          date: newestDate(rows),
+          ext: 'md'),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -91,6 +153,12 @@ class PastResultsTab extends StatelessWidget {
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
               ),
+              if (results.isNotEmpty)
+                IconButton(
+                  tooltip: 'Share all results as one .md',
+                  icon: const Icon(Icons.ios_share),
+                  onPressed: () => _exportAll(context),
+                ),
               IconButton(
                 tooltip: 'Reload',
                 icon: const Icon(Icons.refresh),
@@ -146,7 +214,10 @@ class PastResultsTab extends StatelessWidget {
                         onTap: () => Navigator.push(
                           context,
                           MaterialPageRoute(
-                              builder: (_) => SavedResultPage(result: r)),
+                              builder: (_) => SavedResultPage(
+                                  result: r,
+                                  sourceTitle: sourceTitle,
+                                  sourceLine: _sourceLine)),
                         ),
                       );
                     },
@@ -161,7 +232,35 @@ class PastResultsTab extends StatelessWidget {
 /// Full-screen reader for one saved result (Markdown + bidirectional TOC).
 class SavedResultPage extends StatelessWidget {
   final SavedResult result;
-  const SavedResultPage({super.key, required this.result});
+  final String sourceTitle;
+  final String sourceLine;
+  const SavedResultPage({
+    super.key,
+    required this.result,
+    this.sourceTitle = '',
+    this.sourceLine = '',
+  });
+
+  /// This one result, packaged like the dashboard's per-result "⬇ .md".
+  Future<void> _export(BuildContext context) async {
+    final name = result.promptName ?? 'Result';
+    final md = packageMd(
+      result.content,
+      title: '${sourceTitle.isEmpty ? 'Book' : sourceTitle} — $name',
+      models: [result.model ?? ''],
+      sources: [sourceLine],
+      kind: 'Prompt result: $name',
+    );
+    await shareMarkdown(
+      context,
+      md,
+      downloadName(
+          title: sourceTitle.isEmpty ? name : sourceTitle,
+          kind: name,
+          date: DateTime.tryParse(result.createdAt ?? ''),
+          ext: 'md'),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -177,6 +276,11 @@ class SavedResultPage extends StatelessWidget {
             maxLines: 1, overflow: TextOverflow.ellipsis),
         actions: [
           const TextSizeButtons(),
+          IconButton(
+            tooltip: 'Share as .md (with contents + provenance)',
+            icon: const Icon(Icons.ios_share),
+            onPressed: () => _export(context),
+          ),
           IconButton(
             tooltip: 'Copy Markdown',
             icon: const Icon(Icons.copy),

@@ -1,5 +1,5 @@
 name: book_dashboard
-description: "Book Dashboard — Android companion app (phone + tablet). Same backend, same database as the web dashboard."
+description: "Phil's Library — Android companion app for books (phone + tablet). Same backend, same database as the web dashboard."
 publish_to: 'none'
 version: 1.0.0+1
 

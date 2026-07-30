@@ -121,7 +121,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               style: Theme.of(context).textTheme.headlineSmall),
           const SizedBox(height: 4),
           const Text(
-              'Point the app at your Book Dashboard deployment. It uses the same database as the web version.'),
+              "Point the app at your Phil's Library deployment. It uses the same database as the web version."),
           const SizedBox(height: 20),
         ],
         TextField(

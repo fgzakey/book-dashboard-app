@@ -297,6 +297,8 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
                     loading: _resultsLoading,
                     error: _resultsError,
                     onRefresh: _loadResults,
+                    sourceTitle: b.title ?? b.bookId,
+                    sourceAuthor: b.author,
                   ),
                   _buildText(b),
                   ImagesTab(book: b),
