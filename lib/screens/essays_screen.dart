@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../app_state.dart';
 import '../main.dart';
@@ -40,6 +41,24 @@ class _EssaysScreenState extends State<EssaysScreen> {
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: state.loadingEssays ? null : () => state.refreshEssays(),
+          ),
+          // Canon review — the reading and essay review dashboard on the server.
+          // Opens in the device browser rather than a webview: commenting depends
+          // on selecting a passage, and selection works far better outside one.
+          IconButton(
+            tooltip: 'Canon review \u2014 read, comment and approve',
+            icon: const Icon(Icons.rate_review_outlined),
+            onPressed: () async {
+              final base = context.read<AppState>().api.baseUrl;
+              if (base.isEmpty) {
+                showSnack(context, 'Set the server URL in Settings first');
+                return;
+              }
+              final uri = Uri.parse('$base/canon');
+              if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+                if (context.mounted) showSnack(context, 'Could not open $uri');
+              }
+            },
           ),
         ],
       ),
