@@ -1,0 +1,30 @@
+# Normalise everything to LF in the repository. Git checks out whatever the
+# platform wants; the blob is always LF. Without this, Windows tooling rewrites
+# every tracked file and produces 10,000-line no-op diffs.
+* text=auto eol=lf
+
+# Windows-only build files that genuinely want CRLF
+*.bat        text eol=crlf
+*.cmd        text eol=crlf
+*.ps1        text eol=crlf
+*.sln        text eol=crlf
+*.vcxproj    text eol=crlf
+
+# Never touch these
+*.png        binary
+*.jpg        binary
+*.jpeg       binary
+*.gif        binary
+*.ico        binary
+*.webp       binary
+*.ttf        binary
+*.otf        binary
+*.woff       binary
+*.woff2      binary
+*.keystore   binary
+*.jks        binary
+*.jar        binary
+*.apk        binary
+*.aab        binary
+*.so         binary
+gradlew      text eol=lf
