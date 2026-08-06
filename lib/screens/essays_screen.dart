@@ -25,7 +25,9 @@ class _EssaysScreenState extends State<EssaysScreen> {
     super.didChangeDependencies();
     if (!_loadedOnce) {
       _loadedOnce = true;
-      Future.microtask(() => context.read<AppState>().refreshEssays());
+      Future.microtask(() {
+        if (mounted) context.read<AppState>().refreshEssays();
+      });
     }
   }
 

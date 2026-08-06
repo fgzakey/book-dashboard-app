@@ -615,8 +615,8 @@ class _StreamingResultViewerState extends State<_StreamingResultViewer> {
                         showSnack(context, 'Saved to Results.');
                       }
                     } catch (e) {
-                      if (mounted) {
-                        setState(() => _saving = false);
+                      if (mounted) setState(() => _saving = false);
+                      if (context.mounted) {
                         showSnack(context, 'Save failed: $e');
                       }
                     }
