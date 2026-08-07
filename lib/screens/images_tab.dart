@@ -243,8 +243,13 @@ class _ImagesTabState extends State<ImagesTab> {
       final file = File('${dir.path}/$name');
       await file.writeAsBytes(bytes);
       if (!mounted) return;
-      await Share.shareXFiles([XFile(file.path, mimeType: 'application/pdf')],
-          subject: '${widget.book.title} — Images & Figures');
+      final box = context.findRenderObject() as RenderBox?;
+      await SharePlus.instance.share(ShareParams(
+        files: [XFile(file.path, mimeType: 'application/pdf')],
+        subject: '${widget.book.title} — Images & Figures',
+        sharePositionOrigin:
+            box == null ? null : box.localToGlobal(Offset.zero) & box.size,
+      ));
     } catch (e) {
       if (mounted) setState(() => _error = e.toString());
     }

@@ -11,7 +11,9 @@ class BooksScreen extends StatelessWidget {
 
   Future<void> _addBook(BuildContext context) async {
     final state = context.read<AppState>();
-    final picked = await FilePicker.platform.pickFiles(
+    // file_picker 11 made FilePicker static: FilePicker.platform.pickFiles()
+    // is now FilePicker.pickFiles().
+    final picked = await FilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['epub'],
       withData: true,
@@ -89,7 +91,7 @@ class BooksScreen extends StatelessWidget {
           onRefresh: () => state.refreshBooks(),
           child: ListView.separated(
             itemCount: state.books.length,
-            separatorBuilder: (_, __) => const Divider(height: 1),
+            separatorBuilder: (_, _) => const Divider(height: 1),
             itemBuilder: (context, i) {
               final b = state.books[i];
               return ListTile(

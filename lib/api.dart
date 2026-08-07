@@ -167,7 +167,9 @@ class ApiClient {
   Future<List<SavedResult>> listResults({String query = '', String? bookId}) async {
     final res = await http.get(
         _uri('/api/db/results', {
-          if (bookId != null) 'bookId': bookId,
+          // Dart 3.10 null-aware map element: the `?` goes on the VALUE, so
+          // the entry is dropped when bookId is null.
+          'bookId': ?bookId,
           if (query.isNotEmpty) 'q': query,
         }),
         headers: _headers);

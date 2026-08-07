@@ -108,7 +108,7 @@ class PromptsScreen extends StatelessWidget {
           ? const Center(child: Text('No prompts loaded yet. Pull refresh.'))
           : ListView.separated(
               itemCount: state.prompts.length,
-              separatorBuilder: (_, __) => const Divider(height: 1),
+              separatorBuilder: (_, _) => const Divider(height: 1),
               itemBuilder: (context, i) {
                 final p = state.prompts[i];
                 return ListTile(

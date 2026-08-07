@@ -25,12 +25,21 @@ Map<String, dynamic> resultRow(SavedResult r) => {
 /// app's equivalent of the dashboard's download button.
 Future<void> shareMarkdown(
     BuildContext context, String markdown, String filename) async {
+  // iPad share-sheet anchor, read before any await: touching the BuildContext
+  // after an async gap throws if the widget was disposed meanwhile.
+  final box = context.findRenderObject() as RenderBox?;
+  final origin = box == null ? null : box.localToGlobal(Offset.zero) & box.size;
   try {
     final dir = await getTemporaryDirectory();
     final file = File('${dir.path}/$filename');
     await file.writeAsString(markdown);
-    await Share.shareXFiles([XFile(file.path, mimeType: 'text/markdown')],
-        subject: filename);
+    // share_plus 13 replaced the static Share.shareXFiles() with
+    // SharePlus.instance.share(ShareParams(...)).
+    await SharePlus.instance.share(ShareParams(
+      files: [XFile(file.path, mimeType: 'text/markdown')],
+      subject: filename,
+      sharePositionOrigin: origin,
+    ));
   } catch (e) {
     if (context.mounted) showSnack(context, 'Could not export: $e');
   }
@@ -194,7 +203,7 @@ class PastResultsTab extends StatelessWidget {
                     physics: const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.only(bottom: 24),
                     itemCount: results.length,
-                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    separatorBuilder: (_, _) => const Divider(height: 1),
                     itemBuilder: (context, i) {
                       final r = results[i];
                       final meta = [

@@ -175,22 +175,38 @@ class _ScribeTabState extends State<ScribeTab> {
     }
   }
 
+  /// iPad share-sheet anchor. Read BEFORE any await — using the BuildContext
+  /// after an async gap throws if the widget was disposed meanwhile.
+  Rect? get _shareOrigin {
+    final box = context.findRenderObject() as RenderBox?;
+    return box == null ? null : box.localToGlobal(Offset.zero) & box.size;
+  }
+
   Future<void> _shareSvg(String svg, String name) async {
+    final origin = _shareOrigin;
     final dir = await getTemporaryDirectory();
     final safe = downloadName(title: name, kind: 'Whiteboard', ext: 'svg');
     final file = File('${dir.path}/$safe');
     await file.writeAsString(svg);
-    await Share.shareXFiles([XFile(file.path, mimeType: 'image/svg+xml')],
-        subject: name);
+    // share_plus 13: SharePlus.instance.share(ShareParams(...)).
+    await SharePlus.instance.share(ShareParams(
+      files: [XFile(file.path, mimeType: 'image/svg+xml')],
+      subject: name,
+      sharePositionOrigin: origin,
+    ));
   }
 
   Future<void> _shareGraphJson(Map<String, dynamic> graph, String name) async {
+    final origin = _shareOrigin;
     final dir = await getTemporaryDirectory();
     final safe = downloadName(title: name, kind: 'Graph Export', ext: 'json');
     final file = File('${dir.path}/$safe');
     await file.writeAsString(const JsonEncoder.withIndent('  ').convert(graph));
-    await Share.shareXFiles([XFile(file.path, mimeType: 'application/json')],
-        subject: '$name — knowledge graph');
+    await SharePlus.instance.share(ShareParams(
+      files: [XFile(file.path, mimeType: 'application/json')],
+      subject: '$name — knowledge graph',
+      sharePositionOrigin: origin,
+    ));
   }
 
   Widget _board(String svg) {

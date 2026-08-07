@@ -90,7 +90,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
                     ? const Center(child: Text('No saved results.'))
                     : ListView.separated(
                         itemCount: _results.length,
-                        separatorBuilder: (_, __) => const Divider(height: 1),
+                        separatorBuilder: (_, _) => const Divider(height: 1),
                         itemBuilder: (context, i) {
                           final r = _results[i];
                           return ListTile(

@@ -92,7 +92,7 @@ class _EssaysScreenState extends State<EssaysScreen> {
           onRefresh: () => state.refreshEssays(),
           child: ListView.separated(
             itemCount: state.essays.length,
-            separatorBuilder: (_, __) => const Divider(height: 1),
+            separatorBuilder: (_, _) => const Divider(height: 1),
             itemBuilder: (context, i) {
               final e = state.essays[i];
               return ListTile(

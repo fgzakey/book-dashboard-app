@@ -454,7 +454,7 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
     return ListView.separated(
       padding: const EdgeInsets.all(8),
       itemCount: b.chapters.length,
-      separatorBuilder: (_, __) => const Divider(height: 1),
+      separatorBuilder: (_, _) => const Divider(height: 1),
       itemBuilder: (context, i) {
         final c = Map<String, dynamic>.from(b.chapters[i]);
         final title = c['title']?.toString() ?? 'Chapter ${i + 1}';
