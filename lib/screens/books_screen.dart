@@ -11,9 +11,9 @@ class BooksScreen extends StatelessWidget {
 
   Future<void> _addBook(BuildContext context) async {
     final state = context.read<AppState>();
-    // file_picker 11 made FilePicker static: FilePicker.platform.pickFiles()
-    // is now FilePicker.pickFiles().
-    final picked = await FilePicker.pickFiles(
+    // file_picker 10 API. 11 made FilePicker static (FilePicker.pickFiles()),
+    // but 11 breaks the Android build — see the pubspec note before changing.
+    final picked = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['epub'],
       withData: true,

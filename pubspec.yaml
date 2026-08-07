@@ -16,11 +16,16 @@ dependencies:
   provider: ^6.1.2
   shared_preferences: ^2.2.3
   url_launcher: ^6.3.0
-  # NOT ^12.0.0-beta.x: `pub upgrade --major-versions` will happily resolve to a
-  # PRERELEASE. 11.0.3 is the latest stable. Note 11.0.0 made FilePicker static
-  # (FilePicker.platform.pickFiles() -> FilePicker.pickFiles()), which is why
-  # books_screen.dart changed with this bump.
-  file_picker: ^11.0.3
+  # DELIBERATELY HELD AT 10 (2026-08-07). Two separate traps above this line:
+  #  - ^12.0.0-beta.x: `pub upgrade --major-versions` resolves to PRERELEASES.
+  #  - ^11.0.3: analyzes clean but FAILS THE ANDROID BUILD. The generated
+  #    GeneratedPluginRegistrant.java still registers
+  #    com.mr.flutter.plugin.filepicker.FilePickerPlugin, which no longer
+  #    resolves -> "cannot find symbol" in :app:compileReleaseJavaWithJavac.
+  #    `flutter analyze` cannot catch this; only an APK build does.
+  # 10.x gives this app everything it uses (pickFiles), so the bump bought
+  # nothing. Revisit only with a real APK build, not an analyze.
+  file_picker: ^10.3.10
   webview_flutter: ^4.8.0
   path_provider: ^2.1.3
   # 12, NOT 13 (unlike the other two apps): share_plus 13 needs win32 ^6, while
