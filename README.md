@@ -36,3 +36,7 @@ On the phone, download the APK from Releases, open it, and allow "install from t
 flutter pub get
 flutter run
 ```
+
+## Developing
+
+Start with [AGENTS.md](AGENTS.md) — project conventions and institutional knowledge, shared by humans and every coding harness (Claude Code reads it through CLAUDE.md; Codex and Hermes read it natively). Then see [CONTRIBUTING.md](CONTRIBUTING.md) for setup and the PR flow.
