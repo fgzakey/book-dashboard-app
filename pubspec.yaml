@@ -1,7 +1,7 @@
 name: book_dashboard
 description: "Phil's Library — Android companion app for books (phone + tablet). Same backend, same database as the web dashboard."
 publish_to: 'none'
-version: 1.0.0+1
+version: 2.0.0+2
 
 environment:
   # Raised from 3.3 with the 2026-08-07 upgrade pass. share_plus 12 only needs
