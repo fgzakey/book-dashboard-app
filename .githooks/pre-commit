@@ -1,0 +1,16 @@
+#!/bin/sh
+# Committed hook. Enable per clone with:  git config core.hooksPath .githooks
+#
+# This repo is committed and pushed automatically by sync-all.ps1, which runs
+# `git add -A`. Nothing here gets a human review before it leaves the machine,
+# so this scan is the review.
+if command -v gitleaks >/dev/null 2>&1; then
+  gitleaks protect --staged --redact --verbose || {
+    echo ""
+    echo "BLOCKED: gitleaks found a secret in staged changes."
+    echo "Encrypt it (scripts\\secrets.ps1 -Mode Edit) or remove it, then retry."
+    exit 1
+  }
+else
+  echo "warning: gitleaks not on PATH - commit allowed without a secret scan" >&2
+fi
