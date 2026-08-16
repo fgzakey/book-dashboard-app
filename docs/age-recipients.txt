@@ -1,0 +1,3 @@
+# age recipients — public keys only. Safe to commit anywhere.
+# Format: <age1 public key>  <owner>
+age1fcjye9jcv26xjn6h6s3ep0fu8w2jh6ctee06chfmx9wuz7czqqts3zaph6  fidel@FG_SURFACE
