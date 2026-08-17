@@ -20,7 +20,10 @@ class Book {
   Map<String, dynamic>? scribes; // scopeKey -> {svg, spec, images, mode, artStyle, ...}
   bool hasImages; // list-row flag (full record not loaded yet)
   bool hasScribes;
-  int? savedAt; // epoch ms
+  int? savedAt; // epoch ms — `updated_at`, i.e. LAST MODIFIED
+  int? addedAt; // `created_at`
+  int? openedAt; // `last_opened_at`, written only by touchBook
+  int? extractedAt; // MAX(book_results.created_at) for this book
 
   Book({
     required this.bookId,
@@ -43,6 +46,9 @@ class Book {
     this.hasImages = false,
     this.hasScribes = false,
     this.savedAt,
+    this.addedAt,
+    this.openedAt,
+    this.extractedAt,
   })  : segments = segments ?? [],
         chat = chat ?? [],
         chapters = chapters ?? [];
@@ -74,6 +80,9 @@ class Book {
         hasImages: j['hasImages'] as bool? ?? false,
         hasScribes: j['hasScribes'] as bool? ?? false,
         savedAt: (j['savedAt'] as num?)?.toInt(),
+        addedAt: (j['addedAt'] as num?)?.toInt(),
+        openedAt: (j['openedAt'] as num?)?.toInt(),
+        extractedAt: (j['extractedAt'] as num?)?.toInt(),
       );
 
   /// Full payload for upsert. The server COALESCEs null images/scribes/cover,
@@ -137,6 +146,51 @@ class Book {
     if (ci != null && ci < chapters.length) return ci;
     return null;
   }
+}
+
+/// Book-list orderings, mirroring the web dashboard's `LIBRARY_SORTS` in
+/// `phils-library/app/library-search.js`.
+enum BookSort { savedAt, opened, added, extracted }
+
+extension BookSortLabel on BookSort {
+  String get label => switch (this) {
+        BookSort.savedAt => 'Last modified',
+        BookSort.opened => 'Last accessed',
+        BookSort.added => 'Date added',
+        BookSort.extracted => 'Last extracted',
+      };
+
+  int? keyOf(Book b) => switch (this) {
+        BookSort.savedAt => b.savedAt,
+        BookSort.opened => b.openedAt,
+        BookSort.added => b.addedAt,
+        BookSort.extracted => b.extractedAt,
+      };
+}
+
+/// Short label for the value the list is CURRENTLY ordered by.
+String sortStamp(Book b, BookSort sort) {
+  if (sort == BookSort.savedAt) return '';
+  const verbs = {
+    BookSort.opened: 'opened',
+    BookSort.added: 'added',
+    BookSort.extracted: 'extracted',
+  };
+  final verb = verbs[sort];
+  if (verb == null) return '';
+  final ms = sort.keyOf(b);
+  if (ms == null) return 'never $verb';
+
+  final then = DateTime.fromMillisecondsSinceEpoch(ms);
+  final days = DateTime.now().difference(then).inDays;
+  if (days <= 0) return '$verb today';
+  if (days == 1) return '$verb yesterday';
+  if (days < 30) return '$verb ${days}d ago';
+  const months = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+  ];
+  return '$verb ${then.day} ${months[then.month - 1]} ${then.year}';
 }
 
 class ChatMessage {
@@ -343,4 +397,206 @@ class Essay {
         targetType: j['target_type']?.toString(),
         updatedAt: j['updated_at']?.toString(),
       );
+}
+
+// ---- Workspaces / Multi-user databases ----
+
+class WorkspaceInfo {
+  final String? owner; // null for canon
+  final String name;
+  final String kind; // canon | fork | clean | external
+  final String label;
+  final bool isCanon;
+  final bool active;
+  final bool mine;
+  final bool canWrite;
+  final bool canDelete;
+  final int books;
+  final int videos;
+  final int results;
+  final int boards;
+  final int scenes;
+
+  WorkspaceInfo({
+    this.owner,
+    required this.name,
+    this.kind = 'fork',
+    required this.label,
+    this.isCanon = false,
+    this.active = false,
+    this.mine = true,
+    this.canWrite = true,
+    this.canDelete = false,
+    this.books = 0,
+    this.videos = 0,
+    this.results = 0,
+    this.boards = 0,
+    this.scenes = 0,
+  });
+
+  factory WorkspaceInfo.fromJson(Map<String, dynamic> j) => WorkspaceInfo(
+        owner: j['owner'] as String?,
+        name: j['name']?.toString() ?? 'canon',
+        kind: j['kind']?.toString() ?? 'canon',
+        label: j['label']?.toString() ?? (j['name']?.toString() ?? 'canon'),
+        isCanon: j['isCanon'] as bool? ?? (j['kind'] == 'canon'),
+        active: j['active'] as bool? ?? false,
+        mine: j['mine'] as bool? ?? true,
+        canWrite: j['canWrite'] as bool? ?? true,
+        canDelete: j['canDelete'] as bool? ?? false,
+        books: (j['books'] as num?)?.toInt() ?? 0,
+        videos: (j['videos'] as num?)?.toInt() ?? 0,
+        results: (j['results'] as num?)?.toInt() ?? 0,
+        boards: (j['boards'] as num?)?.toInt() ?? 0,
+        scenes: (j['scenes'] as num?)?.toInt() ?? 0,
+      );
+}
+
+class WorkspacesResponse {
+  final String member;
+  final bool admin;
+  final WorkspaceInfo? active;
+  final List<WorkspaceInfo> workspaces;
+
+  WorkspacesResponse({
+    this.member = 'admin',
+    this.admin = true,
+    this.active,
+    this.workspaces = const [],
+  });
+
+  factory WorkspacesResponse.fromJson(Map<String, dynamic> j) => WorkspacesResponse(
+        member: j['member']?.toString() ?? 'admin',
+        admin: j['admin'] as bool? ?? false,
+        active: j['active'] is Map
+            ? WorkspaceInfo.fromJson(Map<String, dynamic>.from(j['active']))
+            : null,
+        workspaces: ((j['workspaces'] as List?) ?? [])
+            .map((w) => WorkspaceInfo.fromJson(Map<String, dynamic>.from(w)))
+            .toList(),
+      );
+}
+
+// ---- Mnemonic scenes ----
+
+class MnemonicSource {
+  final String sourceKind; // book | video
+  final String sourceId;
+  final String sourceTitle;
+  final int imageCount;
+  final int boardCount;
+  final String? latest;
+
+  MnemonicSource({
+    required this.sourceKind,
+    required this.sourceId,
+    required this.sourceTitle,
+    this.imageCount = 0,
+    this.boardCount = 0,
+    this.latest,
+  });
+
+  factory MnemonicSource.fromJson(Map<String, dynamic> j) => MnemonicSource(
+        sourceKind: j['source_kind']?.toString() ?? 'book',
+        sourceId: j['source_id']?.toString() ?? '',
+        sourceTitle: j['source_title']?.toString() ?? '(untitled source)',
+        imageCount: (j['image_count'] as num?)?.toInt() ?? 0,
+        boardCount: (j['board_count'] as num?)?.toInt() ?? 0,
+        latest: j['latest']?.toString(),
+      );
+}
+
+class MnemonicHotspot {
+  final int i;
+  final String heading;
+  final String theme;
+  final String colorHex;
+  final List<String> points;
+  final double? x;
+  final double? y;
+  final String placed; // vision | legend
+
+  MnemonicHotspot({
+    required this.i,
+    required this.heading,
+    this.theme = '',
+    this.colorHex = '',
+    this.points = const [],
+    this.x,
+    this.y,
+    this.placed = 'legend',
+  });
+
+  factory MnemonicHotspot.fromJson(Map<String, dynamic> j) => MnemonicHotspot(
+        i: (j['i'] as num?)?.toInt() ?? 0,
+        heading: j['heading']?.toString() ?? '',
+        theme: j['theme']?.toString() ?? '',
+        colorHex: j['color']?.toString() ?? '',
+        points: ((j['points'] as List?) ?? []).map((p) => p.toString()).toList(),
+        x: (j['x'] as num?)?.toDouble(),
+        y: (j['y'] as num?)?.toDouble(),
+        placed: j['placed']?.toString() ?? 'legend',
+      );
+}
+
+class MnemonicScene {
+  final dynamic id;
+  final String sourceKind;
+  final String sourceId;
+  final String sourceTitle;
+  final String boardKey;
+  final String variant;
+  final String? style;
+  final String? styleName;
+  final String? model;
+  final int? width;
+  final int? height;
+  final String? sourceResolution;
+  final List<MnemonicHotspot> hotspots;
+  final String? createdAt;
+  final int imageChars;
+  final String? image; // data URL, only on single-row fetch
+
+  MnemonicScene({
+    this.id,
+    required this.sourceKind,
+    required this.sourceId,
+    required this.sourceTitle,
+    required this.boardKey,
+    this.variant = 'clean',
+    this.style,
+    this.styleName,
+    this.model,
+    this.width,
+    this.height,
+    this.sourceResolution,
+    this.hotspots = const [],
+    this.createdAt,
+    this.imageChars = 0,
+    this.image,
+  });
+
+  factory MnemonicScene.fromJson(Map<String, dynamic> j) {
+    final image = j['image']?.toString();
+    return MnemonicScene(
+      id: j['id'],
+      sourceKind: j['source_kind']?.toString() ?? 'book',
+      sourceId: j['source_id']?.toString() ?? '',
+      sourceTitle: j['source_title']?.toString() ?? '(untitled source)',
+      boardKey: j['board_key']?.toString() ?? '',
+      variant: j['variant']?.toString() ?? 'clean',
+      style: j['style']?.toString(),
+      styleName: j['style_name']?.toString(),
+      model: j['model']?.toString(),
+      width: (j['width'] as num?)?.toInt(),
+      height: (j['height'] as num?)?.toInt(),
+      sourceResolution: j['source_resolution']?.toString(),
+      hotspots: ((j['hotspots'] as List?) ?? [])
+          .map((h) => MnemonicHotspot.fromJson(Map<String, dynamic>.from(h)))
+          .toList(),
+      createdAt: j['created_at']?.toString(),
+      imageChars: (j['image_chars'] as num?)?.toInt() ?? image?.length ?? 0,
+      image: image,
+    );
+  }
 }

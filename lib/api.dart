@@ -115,6 +115,14 @@ class ApiClient {
     _json(res);
   }
 
+  /// Stamps `last_opened_at` on the server and returns the new epoch ms.
+  Future<int?> touchBook(String bookId) async {
+    final res = await http.patch(_uri('/api/db/books', {'touch': bookId}),
+        headers: _headers);
+    final j = _json(res);
+    return (j['openedAt'] as num?)?.toInt();
+  }
+
   // ---- Prompts ----
 
   Future<List<PromptTemplate>> listPrompts() async {
@@ -412,6 +420,47 @@ class ApiClient {
     final url = j['url'] as String?;
     if (url == null || url.isEmpty) throw ApiException('No image returned.', 502);
     return url;
+  }
+
+  // ---- Workspaces / Databases ----
+
+  Future<WorkspacesResponse> listWorkspaces() async {
+    final res = await http.get(_uri('/api/db/workspaces'), headers: _headers);
+    return WorkspacesResponse.fromJson(_json(res));
+  }
+
+  Future<void> switchWorkspace(String name, {String? owner}) async {
+    final res = await http.post(_uri('/api/db/workspaces'),
+        headers: _headers,
+        body: jsonEncode({
+          'action': 'switch',
+          'name': name,
+          'owner': ?owner,
+        }));
+    _json(res);
+  }
+
+  // ---- Mnemonic scenes ----
+
+  Future<List<MnemonicScene>> listMnemonicScenes(
+      String sourceKind, String sourceId) async {
+    final res = await http.get(
+        _uri('/api/mnemonic', {'sourceKind': sourceKind, 'sourceId': sourceId}),
+        headers: _headers);
+    final j = _json(res);
+    return ((j['images'] as List?) ?? [])
+        .map((m) => MnemonicScene.fromJson(Map<String, dynamic>.from(m)))
+        .toList();
+  }
+
+  Future<MnemonicScene> getMnemonicScene(dynamic id) async {
+    final res = await http
+        .get(_uri('/api/mnemonic', {'id': '$id'}), headers: _headers)
+        .timeout(const Duration(minutes: 3));
+    final j = _json(res);
+    final row = j['image'];
+    if (row == null) throw ApiException('Scene not found.', 404);
+    return MnemonicScene.fromJson(Map<String, dynamic>.from(row));
   }
 }
 

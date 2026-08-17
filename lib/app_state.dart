@@ -63,6 +63,15 @@ class AppState extends ChangeNotifier {
   bool loadingEssays = false;
   String? essaysError;
 
+  // ---- Book list search + sort ----
+  String bookQuery = '';
+  BookSort bookSort = BookSort.savedAt;
+
+  // ---- Workspaces / Databases ----
+  WorkspacesResponse? workspacesResponse;
+  WorkspaceInfo? activeWorkspace;
+  bool loadingWorkspaces = false;
+
   Future<void> loadPrefs() async {
     final p = await SharedPreferences.getInstance();
     final savedUrl = p.getString('baseUrl');
@@ -77,6 +86,11 @@ class AppState extends ChangeNotifier {
     scribeMode = p.getString('scribeMode') ?? scribeMode;
     scribeArtStyle = p.getString('scribeArtStyle') ?? scribeArtStyle;
     scribeGenImages = p.getBool('scribeGenImages') ?? true;
+    final savedSort = p.getString('bookSort');
+    if (savedSort != null) {
+      bookSort = BookSort.values.firstWhere((s) => s.name == savedSort,
+          orElse: () => BookSort.savedAt);
+    }
     loadedPrefs = true;
     notifyListeners();
   }
@@ -161,6 +175,71 @@ class AppState extends ChangeNotifier {
 
   /// Vision-capable models (for the Images tab describe picker).
   List<ModelInfo> get visionModels => models.where((m) => m.vision).toList();
+
+  // ---- Search + Sort ----
+
+  void setBookQuery(String q) {
+    bookQuery = q;
+    notifyListeners();
+  }
+
+  Future<void> setBookSort(BookSort s) async {
+    bookSort = s;
+    notifyListeners();
+    final p = await SharedPreferences.getInstance();
+    await p.setString('bookSort', s.name);
+  }
+
+  List<Book> get visibleBooks {
+    final q = bookQuery.trim().toLowerCase();
+    var list = books;
+    if (q.isNotEmpty) {
+      final tokens = q.split(RegExp(r'\s+')).where((t) => t.isNotEmpty).toList();
+      list = list.where((b) {
+        final title = (b.title ?? '').toLowerCase();
+        final author = (b.author ?? '').toLowerCase();
+        final combo = '$title $author';
+        return tokens.every((t) => combo.contains(t));
+      }).toList();
+    }
+    // Nulls sort to the bottom (tail of the library).
+    list = List.of(list)..sort((a, b) {
+      final ka = bookSort.keyOf(a);
+      final kb = bookSort.keyOf(b);
+      if (ka == null && kb == null) return 0;
+      if (ka == null) return 1;
+      if (kb == null) return -1;
+      return kb.compareTo(ka); // newest first
+    });
+    return list;
+  }
+
+  // ---- Workspaces / Databases ----
+
+  Future<void> refreshWorkspaces() async {
+    if (!api.configured) return;
+    loadingWorkspaces = true;
+    notifyListeners();
+    try {
+      final resp = await api.listWorkspaces();
+      workspacesResponse = resp;
+      activeWorkspace = resp.active ??
+          resp.workspaces.cast<WorkspaceInfo?>().firstWhere(
+                (w) => w?.active == true,
+                orElse: () => resp.workspaces.isNotEmpty ? resp.workspaces.first : null,
+              );
+    } catch (_) {}
+    loadingWorkspaces = false;
+    notifyListeners();
+  }
+
+  Future<void> switchWorkspace(WorkspaceInfo w) async {
+    await api.switchWorkspace(w.name, owner: w.owner);
+    await refreshWorkspaces();
+    await refreshBooks();
+    refreshPrompts();
+    refreshEssays();
+  }
 
   // ---- Books ----
 

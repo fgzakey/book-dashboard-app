@@ -4,10 +4,30 @@ import 'package:provider/provider.dart';
 
 import '../app_state.dart';
 import '../main.dart';
+import '../models.dart';
 import 'book_detail_screen.dart';
 
-class BooksScreen extends StatelessWidget {
+class BooksScreen extends StatefulWidget {
   const BooksScreen({super.key});
+
+  @override
+  State<BooksScreen> createState() => _BooksScreenState();
+}
+
+class _BooksScreenState extends State<BooksScreen> {
+  final _searchCtrl = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _searchCtrl.text = context.read<AppState>().bookQuery;
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
 
   Future<void> _addBook(BuildContext context) async {
     final state = context.read<AppState>();
@@ -52,11 +72,31 @@ class BooksScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
+    final shown = state.visibleBooks;
+    final filtering = state.bookQuery.trim().isNotEmpty;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Books'),
+        title: Text(state.books.isEmpty
+            ? 'Books'
+            : filtering
+                ? 'Books (${shown.length} / ${state.books.length})'
+                : 'Books (${state.books.length})'),
         actions: [
+          PopupMenuButton<BookSort>(
+            icon: const Icon(Icons.sort),
+            tooltip: 'Order by',
+            initialValue: state.bookSort,
+            onSelected: (s) => state.setBookSort(s),
+            itemBuilder: (_) => [
+              for (final s in BookSort.values)
+                CheckedPopupMenuItem(
+                  value: s,
+                  checked: s == state.bookSort,
+                  child: Text(s.label),
+                ),
+            ],
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: state.loadingBooks ? null : () => state.refreshBooks(),
@@ -89,51 +129,109 @@ class BooksScreen extends StatelessWidget {
         }
         return RefreshIndicator(
           onRefresh: () => state.refreshBooks(),
-          child: ListView.separated(
-            itemCount: state.books.length,
-            separatorBuilder: (_, _) => const Divider(height: 1),
-            itemBuilder: (context, i) {
-              final b = state.books[i];
-              return ListTile(
-                leading: const Icon(Icons.menu_book_outlined),
-                title: Text(b.title ?? b.bookId,
-                    maxLines: 2, overflow: TextOverflow.ellipsis),
-                subtitle: Text(
-                  [
-                    if (b.author != null && b.author!.isNotEmpty) b.author!,
-                    '${b.wordCount} words',
-                    if (b.chapters.isNotEmpty) '${b.chapters.length} chapters',
-                    if (b.chat.isNotEmpty) '${b.chat.length ~/ 2} Q&A',
-                  ].join(' · '),
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+                child: TextField(
+                  controller: _searchCtrl,
+                  decoration: InputDecoration(
+                    hintText: 'Search books by title or author…',
+                    prefixIcon: const Icon(Icons.search, size: 20),
+                    suffixIcon: filtering
+                        ? IconButton(
+                            icon: const Icon(Icons.clear, size: 18),
+                            onPressed: () {
+                              _searchCtrl.clear();
+                              state.setBookQuery('');
+                            },
+                          )
+                        : null,
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 10),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  onChanged: (q) => state.setBookQuery(q),
                 ),
-                trailing: IconButton(
-                  icon: const Icon(Icons.delete_outline),
-                  onPressed: () async {
-                    final ok = await showDialog<bool>(
-                      context: context,
-                      builder: (ctx) => AlertDialog(
-                        title: const Text('Delete book?'),
-                        content: Text(b.title ?? b.bookId),
-                        actions: [
-                          TextButton(
-                              onPressed: () => Navigator.pop(ctx, false),
-                              child: const Text('Cancel')),
-                          FilledButton(
-                              onPressed: () => Navigator.pop(ctx, true),
-                              child: const Text('Delete')),
-                        ],
+              ),
+              if (filtering && shown.isEmpty)
+                Expanded(
+                  child: Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Text(
+                        'No books match "${state.bookQuery.trim()}".',
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: Theme.of(context).colorScheme.outline,
+                            ),
                       ),
-                    );
-                    if (ok == true) await state.deleteBook(b.bookId);
-                  },
+                    ),
+                  ),
+                )
+              else
+                Expanded(
+                  child: ListView.separated(
+                    itemCount: shown.length,
+                    separatorBuilder: (_, _) => const Divider(height: 1),
+                    itemBuilder: (context, i) {
+                      final b = shown[i];
+                      final stamp = sortStamp(b, state.bookSort);
+                      final details = [
+                        if (b.author != null && b.author!.isNotEmpty) b.author!,
+                        '${b.wordCount} words',
+                        if (b.chapters.isNotEmpty) '${b.chapters.length} chapters',
+                        if (b.chat.isNotEmpty) '${b.chat.length ~/ 2} Q&A',
+                        if (stamp.isNotEmpty) stamp,
+                      ].join(' · ');
+
+                      return ListTile(
+                        leading: const Icon(Icons.menu_book_outlined),
+                        title: Text(b.title ?? b.bookId,
+                            maxLines: 2, overflow: TextOverflow.ellipsis),
+                        subtitle: Text(details),
+                        trailing: IconButton(
+                          icon: const Icon(Icons.delete_outline),
+                          onPressed: () async {
+                            final ok = await showDialog<bool>(
+                              context: context,
+                              builder: (ctx) => AlertDialog(
+                                title: const Text('Delete book?'),
+                                content: Text(b.title ?? b.bookId),
+                                actions: [
+                                  TextButton(
+                                      onPressed: () => Navigator.pop(ctx, false),
+                                      child: const Text('Cancel')),
+                                  FilledButton(
+                                      onPressed: () => Navigator.pop(ctx, true),
+                                      child: const Text('Delete')),
+                                ],
+                              ),
+                            );
+                            if (ok == true) await state.deleteBook(b.bookId);
+                          },
+                        ),
+                        onTap: () {
+                          // Stamp last_opened_at fire-and-forget
+                          state.api.touchBook(b.bookId).then((openedAt) {
+                            if (openedAt != null) b.openedAt = openedAt;
+                          }).catchError((_) {});
+
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) =>
+                                    BookDetailScreen(bookId: b.bookId)),
+                          );
+                        },
+                      );
+                    },
+                  ),
                 ),
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                      builder: (_) => BookDetailScreen(bookId: b.bookId)),
-                ),
-              );
-            },
+            ],
           ),
         );
       }),
