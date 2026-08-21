@@ -20,4 +20,19 @@ void main() {
     expect(sortStamp(b, BookSort.savedAt), '');
     expect(sortStamp(b, BookSort.opened), isNotEmpty);
   });
+
+  test('ModelInfo parses provider and modalities', () {
+    final m = ModelInfo.fromJson({
+      'id': 'gemini-3.7-flash',
+      'name': 'Gemini 3.7 Flash',
+      'provider': 'google',
+      'context': 1048576,
+      'inputModalities': ['text', 'image'],
+      'outputModalities': ['text'],
+    });
+
+    expect(m.isGoogle, isTrue);
+    expect(m.vision, isTrue);
+    expect(m.provider, 'google');
+  });
 }

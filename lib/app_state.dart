@@ -78,6 +78,7 @@ class AppState extends ChangeNotifier {
     api.baseUrl = (savedUrl == null || savedUrl.isEmpty) ? kDefaultServerUrl : savedUrl;
     api.password = p.getString('password') ?? '';
     api.apiKey = p.getString('apiKey') ?? '';
+    api.geminiApiKey = p.getString('geminiApiKey') ?? '';
     model = p.getString('model') ?? model;
     temperature = p.getDouble('temperature') ?? 0.4;
     mdScale = p.getDouble('mdScale') ?? 1.0;
@@ -106,6 +107,7 @@ class AppState extends ChangeNotifier {
     required String baseUrl,
     required String password,
     String? newApiKey,
+    String? newGeminiApiKey,
     String? newModel,
     double? newTemperature,
   }) async {
@@ -117,6 +119,7 @@ class AppState extends ChangeNotifier {
     api.baseUrl = url;
     api.password = password.trim();
     if (newApiKey != null) api.apiKey = newApiKey.trim();
+    if (newGeminiApiKey != null) api.geminiApiKey = newGeminiApiKey.trim();
     if (newModel != null) model = newModel;
     if (newTemperature != null) temperature = newTemperature;
 
@@ -124,6 +127,7 @@ class AppState extends ChangeNotifier {
     await p.setString('baseUrl', api.baseUrl);
     await p.setString('password', api.password);
     await p.setString('apiKey', api.apiKey);
+    await p.setString('geminiApiKey', api.geminiApiKey);
     await p.setString('model', model);
     await p.setDouble('temperature', temperature);
     notifyListeners();

@@ -20,7 +20,16 @@ class ApiClient {
   /// exactly like the web client does.
   String apiKey;
 
-  ApiClient({this.baseUrl = '', this.password = '', this.apiKey = ''});
+  /// Optional Google Gemini API key. When provided, requests to Google models
+  /// bypass OpenRouter and route directly to Google AI Studio with zero fees.
+  String geminiApiKey;
+
+  ApiClient({
+    this.baseUrl = '',
+    this.password = '',
+    this.apiKey = '',
+    this.geminiApiKey = '',
+  });
 
   // The server URL ships prefilled, so "configured" means the password has
   // been entered too — first run lands on Settings asking only for it.
@@ -238,6 +247,7 @@ class ApiClient {
       'temperature': temperature,
       'stream': true,
       if (apiKey.isNotEmpty) 'apiKey': apiKey,
+      if (geminiApiKey.isNotEmpty) 'geminiApiKey': geminiApiKey,
     });
 
     final client = http.Client();
@@ -321,6 +331,7 @@ class ApiClient {
               'author': author,
               if (prompt != null && prompt.trim().isNotEmpty) 'prompt': prompt,
               if (apiKey.isNotEmpty) 'apiKey': apiKey,
+              if (geminiApiKey.isNotEmpty) 'geminiApiKey': geminiApiKey,
             }))
         .timeout(const Duration(minutes: 6));
     return _json(res);
@@ -357,6 +368,7 @@ class ApiClient {
               if (imageModel != null && imageModel.isNotEmpty)
                 'imageModel': imageModel,
               if (apiKey.isNotEmpty) 'apiKey': apiKey,
+              if (geminiApiKey.isNotEmpty) 'geminiApiKey': geminiApiKey,
             }))
         .timeout(const Duration(minutes: 3));
     final j = _json(res);
@@ -391,6 +403,7 @@ class ApiClient {
               'artStyle': artStyle,
               'temperature': temperature,
               if (apiKey.isNotEmpty) 'apiKey': apiKey,
+              if (geminiApiKey.isNotEmpty) 'geminiApiKey': geminiApiKey,
             }))
         .timeout(const Duration(minutes: 6));
     return _json(res);
@@ -414,6 +427,7 @@ class ApiClient {
               if (imageModel != null && imageModel.isNotEmpty)
                 'imageModel': imageModel,
               if (apiKey.isNotEmpty) 'apiKey': apiKey,
+              if (geminiApiKey.isNotEmpty) 'geminiApiKey': geminiApiKey,
             }))
         .timeout(const Duration(minutes: 4));
     final j = _json(res);
@@ -441,6 +455,15 @@ class ApiClient {
   }
 
   // ---- Mnemonic scenes ----
+
+  Future<List<MnemonicSource>> listMnemonicSources() async {
+    final res = await http.get(_uri('/api/mnemonic', {'sources': '1'}),
+        headers: _headers);
+    final j = _json(res);
+    return ((j['sources'] as List?) ?? [])
+        .map((s) => MnemonicSource.fromJson(Map<String, dynamic>.from(s)))
+        .toList();
+  }
 
   Future<List<MnemonicScene>> listMnemonicScenes(
       String sourceKind, String sourceId) async {

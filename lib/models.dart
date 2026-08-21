@@ -298,6 +298,8 @@ class ModelInfo {
   final String? promptPrice;
   final String? completionPrice;
   final List<String> inputModalities; // e.g. ["text","image"]
+  final List<String> outputModalities;
+  final String provider; // "google" | "openrouter"
 
   ModelInfo({
     required this.id,
@@ -306,9 +308,16 @@ class ModelInfo {
     this.promptPrice,
     this.completionPrice,
     this.inputModalities = const [],
+    this.outputModalities = const [],
+    this.provider = 'openrouter',
   });
 
   bool get vision => inputModalities.contains('image');
+  bool get isGoogle =>
+      provider == 'google' ||
+      id.startsWith('google/') ||
+      id.startsWith('gemini') ||
+      id.startsWith('imagen');
 
   factory ModelInfo.fromJson(Map<String, dynamic> j) => ModelInfo(
         id: j['id'] as String,
@@ -319,6 +328,14 @@ class ModelInfo {
         inputModalities: ((j['inputModalities'] as List?) ?? [])
             .map((e) => e.toString())
             .toList(),
+        outputModalities: ((j['outputModalities'] as List?) ?? [])
+            .map((e) => e.toString())
+            .toList(),
+        provider: j['provider']?.toString() ??
+            ((j['id']?.toString().startsWith('gemini') == true ||
+                    j['id']?.toString().startsWith('google/') == true)
+                ? 'google'
+                : 'openrouter'),
       );
 }
 

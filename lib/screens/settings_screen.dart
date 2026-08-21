@@ -17,6 +17,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late final TextEditingController _url;
   late final TextEditingController _password;
   late final TextEditingController _apiKey;
+  late final TextEditingController _geminiApiKey;
   bool _testing = false;
 
   @override
@@ -26,6 +27,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _url = TextEditingController(text: state.api.baseUrl);
     _password = TextEditingController(text: state.api.password);
     _apiKey = TextEditingController(text: state.api.apiKey);
+    _geminiApiKey = TextEditingController(text: state.api.geminiApiKey);
     if (state.api.configured && state.workspacesResponse == null) {
       Future.microtask(() => state.refreshWorkspaces());
     }
@@ -36,6 +38,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _url.dispose();
     _password.dispose();
     _apiKey.dispose();
+    _geminiApiKey.dispose();
     super.dispose();
   }
 
@@ -43,7 +46,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final state = context.read<AppState>();
     setState(() => _testing = true);
     await state.saveSettings(
-        baseUrl: _url.text, password: _password.text, newApiKey: _apiKey.text);
+      baseUrl: _url.text,
+      password: _password.text,
+      newApiKey: _apiKey.text,
+      newGeminiApiKey: _geminiApiKey.text,
+    );
     try {
       await state.api.login();
       await state.refreshBooks();
@@ -95,9 +102,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     itemCount: filtered.length,
                     itemBuilder: (ctx, i) {
                       final m = filtered[i];
+                      final isGoogle = m.isGoogle;
+                      final subtitle = [
+                        m.id,
+                        if (isGoogle) 'Direct Google' else 'OpenRouter',
+                        if (m.context != null) '${(m.context! / 1024).round()}K context',
+                      ].join(' · ');
+
                       return ListTile(
+                        leading: Icon(isGoogle
+                            ? Icons.auto_awesome
+                            : Icons.psychology_outlined),
                         title: Text(m.name),
-                        subtitle: Text(m.id),
+                        subtitle: Text(subtitle),
                         selected: m.id == state.model,
                         onTap: () => Navigator.pop(ctx, m),
                       );
@@ -229,6 +246,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
             border: OutlineInputBorder(),
           ),
         ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _geminiApiKey,
+          obscureText: true,
+          autocorrect: false,
+          decoration: const InputDecoration(
+            labelText: 'Google Gemini API key (optional)',
+            helperText:
+                'Direct Google AI Studio key (bypasses OpenRouter for Google models with zero routing fee).',
+            border: OutlineInputBorder(),
+          ),
+        ),
         const SizedBox(height: 16),
         FilledButton.icon(
           onPressed: _testing ? null : _saveAndTest,
@@ -278,6 +307,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             baseUrl: _url.text,
             password: _password.text,
             newApiKey: _apiKey.text,
+            newGeminiApiKey: _geminiApiKey.text,
             newTemperature: v,
           ),
         ),
