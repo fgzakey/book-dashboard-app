@@ -35,4 +35,23 @@ void main() {
     expect(m.vision, isTrue);
     expect(m.provider, 'google');
   });
+
+  test('SavedResult parses audio and hasAudio', () {
+    final r1 = SavedResult.fromJson({
+      'id': 1,
+      'prompt_name': 'Executive Summary',
+      'content': '# Summary',
+      'has_audio': true,
+    });
+    expect(r1.hasAudio, isTrue);
+
+    final r2 = SavedResult.fromJson({
+      'id': 2,
+      'prompt_name': 'Key Takeaways',
+      'content': '# Takeaways',
+      'audio': 'data:audio/mpeg;base64,AAAA',
+    });
+    expect(r2.hasAudio, isTrue);
+    expect(r2.audio, 'data:audio/mpeg;base64,AAAA');
+  });
 }

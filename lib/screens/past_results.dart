@@ -213,13 +213,25 @@ class PastResultsTab extends StatelessWidget {
                         if (r.cost != null && r.cost!.isNotEmpty) r.cost!,
                       ].where((s) => s.isNotEmpty).join(' · ');
                       return ListTile(
-                        leading: const Icon(Icons.description_outlined),
+                        leading: Icon(
+                          r.hasAudio
+                              ? Icons.audiotrack
+                              : Icons.description_outlined,
+                          color: r.hasAudio
+                              ? Theme.of(context).colorScheme.primary
+                              : null,
+                        ),
                         title: Text(r.promptName ?? 'Result',
                             maxLines: 1, overflow: TextOverflow.ellipsis),
                         subtitle: meta.isEmpty
                             ? null
                             : Text(meta,
                                 maxLines: 2, overflow: TextOverflow.ellipsis),
+                        trailing: r.hasAudio
+                            ? Icon(Icons.download_for_offline_outlined,
+                                size: 20,
+                                color: Theme.of(context).colorScheme.primary)
+                            : null,
                         onTap: () => Navigator.push(
                           context,
                           MaterialPageRoute(
@@ -271,6 +283,33 @@ class SavedResultPage extends StatelessWidget {
     );
   }
 
+  Future<void> _exportAudio(BuildContext context) async {
+    showSnack(context, 'Fetching audio…');
+    try {
+      final state = context.read<AppState>();
+      final bytes = await state.api.fetchResultAudioBytes(result.id);
+      if (bytes == null || bytes.isEmpty) {
+        if (context.mounted) showSnack(context, 'Audio data not found on server.');
+        return;
+      }
+      final name = downloadName(
+        title: sourceTitle.isEmpty ? 'Audio' : sourceTitle,
+        kind: result.promptName ?? 'Narration',
+        date: DateTime.tryParse(result.createdAt ?? ''),
+        ext: 'mp3',
+      );
+      final box = context.findRenderObject() as RenderBox?;
+      final origin = box == null ? null : box.localToGlobal(Offset.zero) & box.size;
+      await SharePlus.instance.share(ShareParams(
+        files: [XFile.fromData(bytes, mimeType: 'audio/mpeg', name: name)],
+        subject: '${sourceTitle.isEmpty ? 'Audio' : sourceTitle} — ${result.promptName ?? 'Narration'}',
+        sharePositionOrigin: origin,
+      ));
+    } catch (e) {
+      if (context.mounted) showSnack(context, 'Failed to export audio: $e');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final meta = [
@@ -285,6 +324,12 @@ class SavedResultPage extends StatelessWidget {
             maxLines: 1, overflow: TextOverflow.ellipsis),
         actions: [
           const TextSizeButtons(),
+          if (result.hasAudio)
+            IconButton(
+              tooltip: 'Export Audio (.mp3)',
+              icon: const Icon(Icons.audiotrack),
+              onPressed: () => _exportAudio(context),
+            ),
           IconButton(
             tooltip: 'Share as .md (with contents + provenance)',
             icon: const Icon(Icons.ios_share),

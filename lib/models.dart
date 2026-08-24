@@ -265,6 +265,8 @@ class SavedResult {
   final String? model;
   final String? cost;
   final String? createdAt;
+  final bool hasAudio;
+  final String? audio;
 
   SavedResult({
     this.id,
@@ -276,6 +278,8 @@ class SavedResult {
     this.model,
     this.cost,
     this.createdAt,
+    this.hasAudio = false,
+    this.audio,
   });
 
   factory SavedResult.fromJson(Map<String, dynamic> j) => SavedResult(
@@ -288,6 +292,9 @@ class SavedResult {
         model: j['model'] as String?,
         cost: j['cost']?.toString(),
         createdAt: j['created_at']?.toString(),
+        hasAudio: j['has_audio'] == true ||
+            (j['audio'] as String?)?.isNotEmpty == true,
+        audio: j['audio'] as String?,
       );
 }
 

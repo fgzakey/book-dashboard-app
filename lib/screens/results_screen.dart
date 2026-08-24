@@ -3,11 +3,13 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../app_state.dart';
 import '../main.dart';
 import '../models.dart';
 import '../md_toc_view.dart';
+import 'past_results.dart';
 
 class ResultsScreen extends StatefulWidget {
   const ResultsScreen({super.key});
@@ -17,11 +19,10 @@ class ResultsScreen extends StatefulWidget {
 }
 
 class _ResultsScreenState extends State<ResultsScreen> {
+  final _search = TextEditingController();
   List<SavedResult> _results = [];
   bool _loading = false;
   String? _error;
-  Timer? _debounce;
-  final _search = TextEditingController();
 
   @override
   void initState() {
@@ -31,40 +32,39 @@ class _ResultsScreenState extends State<ResultsScreen> {
 
   @override
   void dispose() {
-    _debounce?.cancel();
     _search.dispose();
     super.dispose();
   }
 
-  Future<void> _load() async {
+  Future<void> _load([String query = '']) async {
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
-      final results = await context
-          .read<AppState>()
-          .api
-          .listResults(query: _search.text.trim());
-      if (mounted) setState(() => _results = results);
+      final state = context.read<AppState>();
+      final rs = await state.api.listResults(query: query);
+      if (mounted) setState(() => _results = rs);
     } catch (e) {
       if (mounted) setState(() => _error = e.toString());
     }
     if (mounted) setState(() => _loading = false);
   }
 
-  void _onSearchChanged(String _) {
-    _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 400), _load);
+  void _onSearchChanged(String v) {
+    _load(v.trim());
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Saved results'),
+        title: const Text('Results'),
         actions: [
-          IconButton(icon: const Icon(Icons.refresh), onPressed: _load),
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _loading ? null : () => _load(_search.text.trim()),
+          ),
         ],
       ),
       body: Column(
@@ -94,7 +94,14 @@ class _ResultsScreenState extends State<ResultsScreen> {
                         itemBuilder: (context, i) {
                           final r = _results[i];
                           return ListTile(
-                            leading: const Icon(Icons.description_outlined),
+                            leading: Icon(
+                              r.hasAudio
+                                  ? Icons.audiotrack
+                                  : Icons.description_outlined,
+                              color: r.hasAudio
+                                  ? Theme.of(context).colorScheme.primary
+                                  : null,
+                            ),
                             title: Text(r.promptName ?? 'Result',
                                 maxLines: 1, overflow: TextOverflow.ellipsis),
                             subtitle: Text(
@@ -106,6 +113,11 @@ class _ResultsScreenState extends State<ResultsScreen> {
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                             ),
+                            trailing: r.hasAudio
+                                ? Icon(Icons.download_for_offline_outlined,
+                                    size: 20,
+                                    color: Theme.of(context).colorScheme.primary)
+                                : null,
                             onTap: () => Navigator.push(
                               context,
                               MaterialPageRoute(
@@ -125,6 +137,35 @@ class _ResultDetail extends StatelessWidget {
   final SavedResult result;
   const _ResultDetail({required this.result});
 
+  Future<void> _exportAudio(BuildContext context) async {
+    showSnack(context, 'Fetching audio…');
+    try {
+      final state = context.read<AppState>();
+      final bytes = await state.api.fetchResultAudioBytes(result.id);
+      if (bytes == null || bytes.isEmpty) {
+        if (context.mounted) showSnack(context, 'Audio data not found on server.');
+        return;
+      }
+      final name = downloadName(
+        title: result.bookTitle ?? 'Audio',
+        kind: result.promptName ?? 'Narration',
+        date: DateTime.tryParse(result.createdAt ?? ''),
+        ext: 'mp3',
+      );
+      final box = context.findRenderObject() as RenderBox?;
+      final origin =
+          box == null ? null : box.localToGlobal(Offset.zero) & box.size;
+      await SharePlus.instance.share(ShareParams(
+        files: [XFile.fromData(bytes, mimeType: 'audio/mpeg', name: name)],
+        subject:
+            '${result.bookTitle ?? 'Audio'} — ${result.promptName ?? 'Narration'}',
+        sharePositionOrigin: origin,
+      ));
+    } catch (e) {
+      if (context.mounted) showSnack(context, 'Failed to export audio: $e');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -132,6 +173,12 @@ class _ResultDetail extends StatelessWidget {
         title: Text(result.promptName ?? 'Result',
             maxLines: 1, overflow: TextOverflow.ellipsis),
         actions: [
+          if (result.hasAudio)
+            IconButton(
+              tooltip: 'Export Audio (.mp3)',
+              icon: const Icon(Icons.audiotrack),
+              onPressed: () => _exportAudio(context),
+            ),
           IconButton(
             tooltip: 'Copy Markdown',
             icon: const Icon(Icons.copy),

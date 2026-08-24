@@ -219,6 +219,29 @@ class ApiClient {
     _json(res);
   }
 
+  Future<SavedResult> getResult(dynamic id) async {
+    final res = await http.get(_uri('/api/db/results', {'id': '$id'}),
+        headers: _headers);
+    final j = _json(res);
+    final r = j['result'];
+    if (r == null) throw ApiException('Result not found.', 404);
+    return SavedResult.fromJson(Map<String, dynamic>.from(r));
+  }
+
+  /// Downloads/decodes the full audio bytes (.mp3) for a given result row.
+  Future<Uint8List?> fetchResultAudioBytes(dynamic id) async {
+    final r = await getResult(id);
+    final audioStr = r.audio;
+    if (audioStr == null || audioStr.isEmpty) return null;
+    if (audioStr.startsWith('data:')) {
+      final comma = audioStr.indexOf(',');
+      if (comma != -1) {
+        return base64Decode(audioStr.substring(comma + 1));
+      }
+    }
+    return base64Decode(audioStr);
+  }
+
   // ---- Models & chat ----
 
   Future<List<ModelInfo>> listModels() async {

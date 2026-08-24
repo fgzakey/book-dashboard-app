@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../app_state.dart';
 import '../main.dart';
@@ -260,7 +261,7 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
     }
 
     return DefaultTabController(
-      length: 6,
+      length: 7,
       child: Scaffold(
         appBar: AppBar(
           title: Text(b.title ?? b.bookId,
@@ -269,6 +270,7 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
             Tab(text: 'Chat'),
             Tab(text: 'Chapters'),
             Tab(text: 'Results'),
+            Tab(text: 'Audio'),
             Tab(text: 'Text'),
             Tab(text: 'Images'),
             Tab(text: 'Scribe'),
@@ -291,7 +293,7 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
                   _buildChat(state, b),
                   _buildChapters(state, b),
                   // Past prompt results for THIS book — the global Results
-                  // section, scoped, between Chapters and Text.
+                  // section, scoped, between Chapters and Audio.
                   PastResultsTab(
                     results: _results,
                     loading: _resultsLoading,
@@ -300,6 +302,7 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
                     sourceTitle: b.title ?? b.bookId,
                     sourceAuthor: b.author,
                   ),
+                  _buildAudioTab(state, b),
                   _buildText(b),
                   ImagesTab(book: b),
                   ScribeTab(book: b),
@@ -530,6 +533,154 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
         ],
       ),
     );
+  }
+
+  Widget _buildAudioTab(AppState state, Book b) {
+    final audioResults = _results.where((r) => r.hasAudio).toList();
+    if (audioResults.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.audiotrack_outlined,
+                  size: 48, color: Theme.of(context).colorScheme.outline),
+              const SizedBox(height: 16),
+              const Text(
+                'No audio narrations for this book yet.\n'
+                'Audio generated from prompt results or chapters will appear here for offline download and listening.',
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              FilledButton.tonalIcon(
+                icon: const Icon(Icons.refresh),
+                label: const Text('Refresh audio'),
+                onPressed: _loadResults,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return ListView.separated(
+      padding: const EdgeInsets.all(12),
+      itemCount: audioResults.length,
+      separatorBuilder: (_, _) => const SizedBox(height: 8),
+      itemBuilder: (context, i) {
+        final r = audioResults[i];
+        final name = r.promptName ?? 'Narration';
+        final meta = [
+          fmtWhen(r.createdAt),
+          if (r.model != null && r.model!.isNotEmpty) r.model!,
+          if (r.cost != null && r.cost!.isNotEmpty) r.cost!,
+        ].join(' · ');
+
+        return Card(
+          elevation: 0,
+          color: Theme.of(context).colorScheme.surfaceContainerLow,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: BorderSide(
+                color: Theme.of(context).colorScheme.outlineVariant),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 18,
+                      backgroundColor:
+                          Theme.of(context).colorScheme.primaryContainer,
+                      child: Icon(Icons.audiotrack,
+                          size: 20,
+                          color: Theme.of(context)
+                              .colorScheme
+                              .onPrimaryContainer),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(name,
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.bold, fontSize: 15)),
+                          if (meta.isNotEmpty)
+                            Text(meta,
+                                style:
+                                    Theme.of(context).textTheme.bodySmall),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton.icon(
+                      icon: const Icon(Icons.article_outlined, size: 18),
+                      label: const Text('View text'),
+                      onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => SavedResultPage(
+                            result: r,
+                            sourceTitle: b.title ?? b.bookId,
+                            sourceLine:
+                                '${b.title ?? b.bookId}${b.author == null || b.author!.isEmpty ? '' : ' — ${b.author}'} (book)',
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    FilledButton.icon(
+                      icon: const Icon(Icons.download_for_offline_outlined,
+                          size: 18),
+                      label: const Text('Download .mp3'),
+                      onPressed: () => _downloadAudio(r, b),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _downloadAudio(SavedResult r, Book b) async {
+    showSnack(context, 'Fetching audio…');
+    try {
+      final state = context.read<AppState>();
+      final bytes = await state.api.fetchResultAudioBytes(r.id);
+      if (bytes == null || bytes.isEmpty) {
+        if (mounted) showSnack(context, 'Audio data not found on server.');
+        return;
+      }
+      final fileName = downloadName(
+        title: b.title ?? b.bookId,
+        kind: r.promptName ?? 'Narration',
+        date: DateTime.tryParse(r.createdAt ?? ''),
+        ext: 'mp3',
+      );
+      final box = mounted ? context.findRenderObject() as RenderBox? : null;
+      final origin =
+          box == null ? null : box.localToGlobal(Offset.zero) & box.size;
+      await SharePlus.instance.share(ShareParams(
+        files: [XFile.fromData(bytes, mimeType: 'audio/mpeg', name: fileName)],
+        subject: '${b.title ?? b.bookId} — ${r.promptName ?? 'Audio'}',
+        sharePositionOrigin: origin,
+      ));
+    } catch (e) {
+      if (mounted) showSnack(context, 'Failed to download audio: $e');
+    }
   }
 }
 
