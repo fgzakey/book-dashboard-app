@@ -53,14 +53,17 @@ class _ScribeTabState extends State<ScribeTab> {
 
   String _scopeLabel(String key) {
     if (key == 'book') return 'Whole book';
-    final i = int.tryParse(key.replaceFirst('ch-', '')) ?? -1;
+    final cleanKey = key.split('@').first;
+    final i = int.tryParse(cleanKey.replaceFirst('ch-', '')) ?? -1;
     if (i < 0 || i >= widget.book.chapters.length) return key;
-    return 'Ch. ${i + 1}: ${((widget.book.chapters[i] as Map)['title'] ?? '').toString()}';
+    final extra = key.contains('@') ? ' (${key.split('@').last})' : '';
+    return 'Ch. ${i + 1}: ${((widget.book.chapters[i] as Map)['title'] ?? '').toString()}$extra';
   }
 
   String _sourceText() {
     if (_scope == 'book') return widget.book.text;
-    final i = int.tryParse(_scope.replaceFirst('ch-', '')) ?? -1;
+    final cleanKey = _scope.split('@').first;
+    final i = int.tryParse(cleanKey.replaceFirst('ch-', '')) ?? -1;
     return widget.book.chapterText(i);
   }
 
@@ -236,6 +239,16 @@ class _ScribeTabState extends State<ScribeTab> {
     final otherKeys = (b.scribes?.keys.where((k) => k != _scope) ?? const [])
         .toList();
 
+    final scopeItems = <String, String>{
+      'book': 'Whole book',
+      for (var i = 0; i < b.chapters.length; i++)
+        'ch-$i':
+            'Ch. ${i + 1}: ${((b.chapters[i] as Map)['title'] ?? '').toString()}',
+      if (b.scribes != null)
+        for (final k in b.scribes!.keys) k: _scopeLabel(k),
+      if (_scope.isNotEmpty) _scope: _scopeLabel(_scope),
+    };
+
     return ListView(
       padding: const EdgeInsets.all(12),
       children: [
@@ -253,13 +266,10 @@ class _ScribeTabState extends State<ScribeTab> {
           decoration: const InputDecoration(
               labelText: 'Scope', border: OutlineInputBorder(), isDense: true),
           items: [
-            const DropdownMenuItem(value: 'book', child: Text('Whole book')),
-            for (var i = 0; i < b.chapters.length; i++)
+            for (final e in scopeItems.entries)
               DropdownMenuItem(
-                value: 'ch-$i',
-                child: Text(
-                    'Ch. ${i + 1}: ${((b.chapters[i] as Map)['title'] ?? '').toString()}',
-                    overflow: TextOverflow.ellipsis),
+                value: e.key,
+                child: Text(e.value, overflow: TextOverflow.ellipsis),
               ),
           ],
           onChanged: (v) => setState(() {

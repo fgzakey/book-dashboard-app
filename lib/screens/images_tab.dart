@@ -113,6 +113,7 @@ class _ImagesTabState extends State<ImagesTab> {
           target['type'] = entry['type'];
           target['text'] = entry['text'];
           target['description'] = entry['description'];
+          target['context'] = entry['context'];
         }
         final u = j['usage'];
         if (u is Map && u['cost'] is num) cost += (u['cost'] as num).toDouble();
@@ -203,6 +204,10 @@ class _ImagesTabState extends State<ImagesTab> {
         if (text.isNotEmpty) buf.write('\n> $text\n');
         final desc = (im['description'] ?? '').toString();
         if (desc.isNotEmpty) buf.write('\n$desc\n');
+        final contextSummary = (im['context'] ?? '').toString();
+        if (contextSummary.isNotEmpty) {
+          buf.write('\n**Context & Reference Summary:**\n\n$contextSummary\n');
+        }
       }
     }
     return buf.toString();
@@ -225,6 +230,7 @@ class _ImagesTabState extends State<ImagesTab> {
             'type': im['type'],
             'text': im['text'],
             'description': im['description'],
+            'context': im['context'],
             'dataUrl': im['dataUrl'],
           });
         }
@@ -386,6 +392,7 @@ class _ImagesTabState extends State<ImagesTab> {
                 ].where((s) => s.isNotEmpty).join(' · '),
                 text: (im['text'] ?? '').toString(),
                 description: (im['description'] ?? '').toString(),
+                contextSummary: (im['context'] ?? '').toString(),
               ),
         ],
       ],
@@ -400,6 +407,7 @@ class _ImageCard extends StatelessWidget {
   final String? subtitle;
   final String? text;
   final String? description;
+  final String? contextSummary;
 
   const _ImageCard({
     required this.bytes,
@@ -408,6 +416,7 @@ class _ImageCard extends StatelessWidget {
     this.subtitle,
     this.text,
     this.description,
+    this.contextSummary,
   });
 
   @override
@@ -461,6 +470,16 @@ class _ImageCard extends StatelessWidget {
               if ((description ?? '').isNotEmpty) ...[
                 const SizedBox(height: 6),
                 SelectableText(description!),
+              ],
+              if ((contextSummary ?? '').isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text('Context & Reference Summary',
+                    style: Theme.of(context)
+                        .textTheme
+                        .labelSmall
+                        ?.copyWith(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 2),
+                SelectableText(contextSummary!),
               ],
             ],
           );

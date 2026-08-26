@@ -8,8 +8,8 @@ import 'package:share_plus/share_plus.dart';
 import '../app_state.dart';
 import '../main.dart';
 import '../models.dart';
+import '../md_toc.dart';
 import '../md_toc_view.dart';
-import 'past_results.dart';
 
 class ResultsScreen extends StatefulWidget {
   const ResultsScreen({super.key});
@@ -138,6 +138,9 @@ class _ResultDetail extends StatelessWidget {
   const _ResultDetail({required this.result});
 
   Future<void> _exportAudio(BuildContext context) async {
+    final box = context.findRenderObject() as RenderBox?;
+    final origin =
+        box == null ? null : box.localToGlobal(Offset.zero) & box.size;
     showSnack(context, 'Fetching audio…');
     try {
       final state = context.read<AppState>();
@@ -152,9 +155,6 @@ class _ResultDetail extends StatelessWidget {
         date: DateTime.tryParse(result.createdAt ?? ''),
         ext: 'mp3',
       );
-      final box = context.findRenderObject() as RenderBox?;
-      final origin =
-          box == null ? null : box.localToGlobal(Offset.zero) & box.size;
       await SharePlus.instance.share(ShareParams(
         files: [XFile.fromData(bytes, mimeType: 'audio/mpeg', name: name)],
         subject:

@@ -28,9 +28,23 @@ final RegExp _contentsRe = RegExp(r'^(table of )?contents$', caseSensitive: fals
 final RegExp _headingRe = RegExp(r'^(#{1,4})[ \t]+(.+?)[ \t]*$');
 final RegExp _fenceRe = RegExp(r'^\s*(```|~~~)');
 
+/// Emits an HTML anchor tag above headings in downloaded markdown.
+/// Uses clean lowercase hyphenated slugs matching GitHub, VS Code editor/preview,
+/// and Obsidian HTML webview navigation.
+String anchorTag(String slug) {
+  final s = slug.isEmpty ? 'section' : slug;
+  return '<a id="$s" name="$s"></a>';
+}
+
 /// Lowercase kebab slug, deduped: first wins, then -2, -3 ...
 String headingSlug(String text, Map<String, int> seen) {
-  var base = text.toLowerCase().replaceAll(_nonAlnum, '-').replaceAll(_trimDashes, '');
+  var base = text
+      .replaceAll(RegExp(r'&#x([0-9a-f]+);', caseSensitive: false), '')
+      .replaceAll(RegExp(r'&#(\d+);'), '')
+      .replaceAll(RegExp(r'&(amp|lt|gt|quot|apos|nbsp);', caseSensitive: false), '')
+      .toLowerCase()
+      .replaceAll(_nonAlnum, '-')
+      .replaceAll(_trimDashes, '');
   if (base.isEmpty) base = 'section';
   final n = (seen[base] ?? 0) + 1;
   seen[base] = n;
@@ -284,7 +298,7 @@ String packageMd(
   String kind = '',
   DateTime? processed,
 }) {
-  var out = withTitleHeading(
+  var raw = withTitleHeading(
       promoteLabelBullets(md), title.trim().isEmpty ? 'Document' : title);
 
   List<String> uniq(List<String> xs) {
@@ -303,13 +317,33 @@ String packageMd(
     'Processed: ${(processed ?? DateTime.now()).toUtc().toIso8601String()}',
   ].join('\n     ');
 
-  final headRe = RegExp(r'^(#{1,4})[ \t]+(.+)$', multiLine: true);
-  final all = headRe.allMatches(out).toList();
+  final lines = raw.split(RegExp(r'\r?\n'));
+
+  // Pass 1: find all real headings outside code fences
+  var inFence = false;
+  final all = <_HeadingMatch>[];
+  for (var i = 0; i < lines.length; i++) {
+    final line = lines[i];
+    if (_fenceRe.hasMatch(line)) {
+      inFence = !inFence;
+      continue;
+    }
+    if (inFence) continue;
+    final m = RegExp(r'^(#{1,4})[ \t]+(.+)$').firstMatch(line);
+    if (m != null) {
+      all.add(_HeadingMatch(i, m.group(1)!.length, m.group(2)!.trim(), line));
+    }
+  }
 
   bool isBare(int k) {
-    final from = all[k].end;
-    final to = k + 1 < all.length ? all[k + 1].start : out.length;
-    return out.substring(from, to).replaceAll(_htmlComment, '').trim().isEmpty;
+    final fromLine = all[k].lineIndex + 1;
+    final toLine = k + 1 < all.length ? all[k + 1].lineIndex : lines.length;
+    final between = lines
+        .sublist(fromLine, toLine)
+        .join('\n')
+        .replaceAll(_htmlComment, '')
+        .trim();
+    return between.isEmpty;
   }
 
   // Title headings are not sections: index 0 is the canonical one just added,
@@ -319,47 +353,139 @@ String packageMd(
   if (all.isNotEmpty) {
     skip.add(0);
     if (all.length > 1 && isBare(1)) {
-      final lvl = all[1].group(1)!.length;
-      final nextLevel = all.length > 2 ? all[2].group(1)!.length : 0;
-      final otherH1s =
-          all.skip(1).where((m) => m.group(1)!.length == 1).length;
+      final lvl = all[1].level;
+      final nextLevel = all.length > 2 ? all[2].level : 0;
+      final otherH1s = all.skip(1).where((h) => h.level == 1).length;
       if (lvl >= 2 || otherH1s == 1 || nextLevel == 1) skip.add(1);
     }
   }
 
-  final levels = <int>[];
-  final texts = <String>[];
+  final seenHeads = <String, int>{};
+  final validHeads = <_ValidHeading>[];
   for (var k = 0; k < all.length; k++) {
-    final t = all[k].group(2)!.trim();
+    final h = all[k];
+    final t = h.text;
     if (skip.contains(k) || t.isEmpty || _contentsRe.hasMatch(t)) continue;
-    levels.add(all[k].group(1)!.length);
-    texts.add(t);
+    final slug = headingSlug(t, seenHeads);
+    validHeads.add(_ValidHeading(h.level, t, slug));
   }
 
-  if (levels.length >= 2) {
-    final seen = <String, int>{};
-    final min = levels.reduce((a, b) => a < b ? a : b);
-    final lines = <String>[
-      for (var i = 0; i < texts.length; i++)
-        '${'  ' * (levels[i] - min)}- [${texts[i]}](#${headingSlug(texts[i], seen)})'
-    ];
-    final toc = '## Table of Contents\n\n${lines.join('\n')}\n';
-    var k = -1;
-    out = out.replaceAllMapped(headRe, (m) {
-      k++;
-      final txt = m.group(2)!.trim();
-      if (skip.contains(k) || txt.isEmpty || _contentsRe.hasMatch(txt)) {
-        return m.group(0)!;
+  if (validHeads.length >= 2) {
+    final min = validHeads.map((h) => h.level).reduce((a, b) => a < b ? a : b);
+    final toc =
+        '${anchorTag("table-of-contents")}\n\n## Table of Contents\n\n${validHeads.map((h) => '${"  " * (h.level - min)}- [${h.text}](#${h.slug})').join('\n')}';
+
+    final seenBody = <String, int>{};
+    final outLines = <String>[];
+    inFence = false;
+    var headingCursor = -1;
+    var insertedToc = false;
+
+    for (var i = 0; i < lines.length; i++) {
+      final line = lines[i];
+      if (_fenceRe.hasMatch(line)) {
+        inFence = !inFence;
+        outLines.add(line);
+        continue;
       }
-      return '${m.group(0)}\n\n[↑ Table of Contents](#table-of-contents)';
-    });
-    final h1 = RegExp(r'^#[ \t].+$', multiLine: true).firstMatch(out);
-    out = h1 != null
-        ? out.replaceFirst(h1.group(0)!, '${h1.group(0)}\n\n$toc')
-        : '$toc\n$out';
+      if (inFence) {
+        outLines.add(line);
+        continue;
+      }
+      final m = RegExp(r'^(#{1,4})[ \t]+(.+)$').firstMatch(line);
+      if (m != null) {
+        headingCursor++;
+        final txt = m.group(2)!.trim();
+        if (headingCursor == 0) {
+          outLines.add(line);
+          if (!insertedToc) {
+            outLines.add('');
+            outLines.add(toc);
+            insertedToc = true;
+          }
+          continue;
+        }
+        if (skip.contains(headingCursor) ||
+            txt.isEmpty ||
+            _contentsRe.hasMatch(txt)) {
+          outLines.add(line);
+          continue;
+        }
+        final slug = headingSlug(txt, seenBody);
+        outLines.add(anchorTag(slug));
+        outLines.add('');
+        outLines.add(line);
+        outLines.add('');
+        outLines.add('[↑ Table of Contents](#table-of-contents)');
+        continue;
+      }
+      outLines.add(line);
+    }
+
+    if (!insertedToc) {
+      outLines.insert(0, toc);
+      outLines.insert(1, '');
+    }
+
+    raw = outLines.join('\n');
   }
 
-  return '<!-- $meta -->\n\n$out';
+  return '<!-- $meta -->\n\n$raw';
+}
+
+class _HeadingMatch {
+  final int lineIndex;
+  final int level;
+  final String text;
+  final String raw;
+  const _HeadingMatch(this.lineIndex, this.level, this.text, this.raw);
+}
+
+class _ValidHeading {
+  final int level;
+  final String text;
+  final String slug;
+  const _ValidHeading(this.level, this.text, this.slug);
+}
+
+// -------------------------------------------------------- chapter formatting
+
+/// Formats a single chapter's guide/summary entry into markdown bullets.
+/// Port of `formatChapterMarkdown` in `phils-library/lib/chapter-guide.js`.
+/// Produces:
+///   - **Digest:** `summary`
+///   - **Core idea:** `coreIdea`
+///   - **Memorable detail:** `memorableDetail`
+String formatChapterMarkdown(Map<String, dynamic> c) {
+  String clean(dynamic val, RegExp prefixRegex) {
+    if (val == null) return '';
+    var s = val.toString().trim();
+    return s.replaceFirst(prefixRegex, '').trim();
+  }
+
+  final digestPrefix = RegExp(
+    r'^(?:[-*+]\s*)?(?:\*\*|__)?\s*(?:digest|resumen|s[ií]ntesis)\s*(?:\*\*|__)?\s*[:：]\s*(?:\*\*|__)?\s*',
+    caseSensitive: false,
+  );
+  final corePrefix = RegExp(
+    r'^(?:[-*+]\s*)?(?:\*\*|__)?\s*(?:core idea|idea central|idea clave)\s*(?:\*\*|__)?\s*[:：]\s*(?:\*\*|__)?\s*',
+    caseSensitive: false,
+  );
+  final detailPrefix = RegExp(
+    r'^(?:[-*+]\s*)?(?:\*\*|__)?\s*(?:memorable detail|detalle memorable)\s*(?:\*\*|__)?\s*[:：]\s*(?:\*\*|__)?\s*',
+    caseSensitive: false,
+  );
+
+  final digest = clean(c['summary'], digestPrefix);
+  final core = clean(c['coreIdea'], corePrefix);
+  final detail = clean(c['memorableDetail'], detailPrefix);
+
+  final lines = <String>[];
+  if (digest.isNotEmpty) lines.add('- **Digest:** $digest');
+  if (core.isNotEmpty) lines.add('- **Core idea:** $core');
+  if (detail.isNotEmpty) lines.add('- **Memorable detail:** $detail');
+
+  return lines.join('\n');
 }
 
 /// Every archived prompt result for one source, concatenated into a single

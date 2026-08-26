@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -10,6 +12,7 @@ import '../models.dart';
 import 'images_tab.dart';
 import 'past_results.dart';
 import 'scribe_tab.dart';
+import '../md_toc.dart';
 import '../md_toc_view.dart';
 
 class BookDetailScreen extends StatefulWidget {
@@ -413,6 +416,39 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
     }
   }
 
+  Future<void> _exportChapters(Book b) async {
+    final name = downloadName(
+      title: b.title ?? 'Book',
+      kind: 'Chapters',
+      date: b.savedAt != null
+          ? DateTime.fromMillisecondsSinceEpoch(b.savedAt!)
+          : null,
+      ext: 'md',
+    );
+    final buf = StringBuffer('# ${b.title ?? 'Book'} — Chapters\n\n');
+    for (var i = 0; i < b.chapters.length; i++) {
+      final c = Map<String, dynamic>.from(b.chapters[i] as Map);
+      final title = c['title']?.toString() ?? 'Chapter ${i + 1}';
+      final entry = formatChapterMarkdown(c);
+      buf.write(
+          '## ${i + 1}. $title\n\n${entry.isNotEmpty ? entry : '_No AI summary yet._'}\n\n');
+    }
+    final box = context.findRenderObject() as RenderBox?;
+    final origin =
+        box == null ? null : box.localToGlobal(Offset.zero) & box.size;
+    await SharePlus.instance.share(ShareParams(
+      files: [
+        XFile.fromData(
+          Uint8List.fromList(utf8.encode(buf.toString().trim())),
+          mimeType: 'text/markdown',
+          name: name,
+        ),
+      ],
+      subject: '${b.title ?? 'Book'} — Chapters',
+      sharePositionOrigin: origin,
+    ));
+  }
+
   Widget _buildChapters(AppState state, Book b) {
     if (b.chapters.isEmpty) {
       return const Center(child: Text('No chapters detected in this epub.'));
@@ -444,6 +480,12 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
                 onPressed:
                     _summarizing ? null : () => _summarizeChapters(state, b),
               ),
+              const SizedBox(width: 8),
+              IconButton(
+                tooltip: 'Export Chapters .md',
+                icon: const Icon(Icons.download_outlined),
+                onPressed: () => _exportChapters(b),
+              ),
             ],
           ),
         ),
@@ -463,6 +505,7 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
         final title = c['title']?.toString() ?? 'Chapter ${i + 1}';
         final words = (c['wordCount'] as num?)?.toInt() ?? 0;
         final summary = c['summary']?.toString() ?? '';
+        final entry = formatChapterMarkdown(c);
         return ListTile(
           leading: CircleAvatar(radius: 14, child: Text('${i + 1}')),
           title: Text(title),
@@ -487,11 +530,15 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
                   ),
                   actions: const [TextSizeButtons(), SizedBox(width: 4)],
                 ),
-                // Rendered as Markdown (nice typography), not raw text —
-                // ZoomMd also gives pinch-to-zoom + the app-wide text scale.
                 body: Padding(
                   padding: const EdgeInsets.all(16),
-                  child: ZoomMd(data: b.chapterText(i), scrollable: true),
+                  child: ZoomMd(
+                    data: [
+                      if (entry.isNotEmpty) '### Chapter Guide\n\n$entry\n\n---\n',
+                      b.chapterText(i),
+                    ].join('\n'),
+                    scrollable: true,
+                  ),
                 ),
               ),
             ),

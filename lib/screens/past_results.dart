@@ -3,8 +3,10 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../app_state.dart';
 import '../main.dart';
 import '../md_toc.dart';
 import '../md_toc_view.dart';
@@ -284,6 +286,9 @@ class SavedResultPage extends StatelessWidget {
   }
 
   Future<void> _exportAudio(BuildContext context) async {
+    final box = context.findRenderObject() as RenderBox?;
+    final origin =
+        box == null ? null : box.localToGlobal(Offset.zero) & box.size;
     showSnack(context, 'Fetching audio…');
     try {
       final state = context.read<AppState>();
@@ -298,8 +303,6 @@ class SavedResultPage extends StatelessWidget {
         date: DateTime.tryParse(result.createdAt ?? ''),
         ext: 'mp3',
       );
-      final box = context.findRenderObject() as RenderBox?;
-      final origin = box == null ? null : box.localToGlobal(Offset.zero) & box.size;
       await SharePlus.instance.share(ShareParams(
         files: [XFile.fromData(bytes, mimeType: 'audio/mpeg', name: name)],
         subject: '${sourceTitle.isEmpty ? 'Audio' : sourceTitle} — ${result.promptName ?? 'Narration'}',
