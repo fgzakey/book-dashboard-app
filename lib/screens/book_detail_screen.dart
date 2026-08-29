@@ -97,10 +97,11 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
       showSnack(context, 'Book text is still loading — try again in a moment.');
       return;
     }
+    final now = DateTime.now().millisecondsSinceEpoch;
     setState(() {
       _sending = true;
       _streaming = '';
-      b.chat.add(ChatMessage(role: 'user', content: q));
+      b.chat.add(ChatMessage(role: 'user', content: q, at: now));
       _chatController.clear();
     });
     try {
@@ -112,6 +113,7 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
         content: resp.content,
         model: resp.model,
         cost: resp.cost,
+        at: DateTime.now().millisecondsSinceEpoch,
       ));
       await state.saveBook(b); // persist chat to the shared DB
     } catch (e) {
@@ -318,10 +320,68 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
     );
   }
 
+  Future<void> _exportChat(Book b) async {
+    if (b.chat.isEmpty) return;
+    final name = downloadName(
+      title: b.title ?? 'Book',
+      kind: 'Q and A',
+      date: b.savedAt != null
+          ? DateTime.fromMillisecondsSinceEpoch(b.savedAt!)
+          : null,
+      ext: 'md',
+    );
+    final buf = StringBuffer('# ${b.title ?? 'Book'} — Q&A Transcript\n\n');
+    for (final m in b.chat) {
+      final timeTag = m.at != null
+          ? ' _(${DateTime.fromMillisecondsSinceEpoch(m.at!).toLocal().toString().split('.').first})_'
+          : '';
+      if (m.role == 'user') {
+        buf.write('## Q: ${m.content}$timeTag\n\n');
+      } else {
+        final meta = m.model != null
+            ? '\n\n> *Answered via ${m.model}${m.cost != null ? ' (${m.cost})' : ''}$timeTag*'
+            : '';
+        buf.write('${m.content}$meta\n\n');
+      }
+    }
+    final box = context.findRenderObject() as RenderBox?;
+    final origin =
+        box == null ? null : box.localToGlobal(Offset.zero) & box.size;
+    await SharePlus.instance.share(ShareParams(
+      files: [
+        XFile.fromData(
+          Uint8List.fromList(utf8.encode(buf.toString().trim())),
+          mimeType: 'text/markdown',
+          name: name,
+        ),
+      ],
+      subject: '${b.title ?? 'Book'} — Q&A',
+      sharePositionOrigin: origin,
+    ));
+  }
+
   Widget _buildChat(AppState state, Book b) {
     final showStream = _sending && _streaming.isNotEmpty;
     return Column(
       children: [
+        if (b.chat.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 6, 12, 0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  '${b.chat.where((m) => m.role == 'user').length} question(s) in transcript',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+                TextButton.icon(
+                  icon: const Icon(Icons.download_outlined, size: 16),
+                  label: const Text('Export Q&A .md', style: TextStyle(fontSize: 12)),
+                  onPressed: () => _exportChat(b),
+                ),
+              ],
+            ),
+          ),
         Expanded(
           child: b.chat.isEmpty && !showStream
               ? const Center(child: Text('Ask anything about this book.'))
@@ -334,6 +394,16 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
                         ? ChatMessage(role: 'assistant', content: _streaming)
                         : b.chat[i];
                     final isUser = m.role == 'user';
+                    final meta = [
+                      if (m.at != null)
+                        DateTime.fromMillisecondsSinceEpoch(m.at!)
+                            .toLocal()
+                            .toString()
+                            .substring(5, 16),
+                      if (m.model != null && m.model!.isNotEmpty) m.model!,
+                      if (m.cost != null && m.cost!.isNotEmpty) m.cost!,
+                    ].join(' · ');
+
                     return Align(
                       alignment:
                           isUser ? Alignment.centerRight : Alignment.centerLeft,
@@ -349,9 +419,65 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
                               : Theme.of(context).colorScheme.surfaceContainerHigh,
                           borderRadius: BorderRadius.circular(14),
                         ),
-                        child: isUser
-                            ? Text(m.content)
-                            : ZoomMd(data: m.content),
+                        child: Column(
+                          crossAxisAlignment: isUser
+                              ? CrossAxisAlignment.end
+                              : CrossAxisAlignment.start,
+                          children: [
+                            if (meta.isNotEmpty)
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 4),
+                                child: Text(
+                                  meta,
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .outline,
+                                  ),
+                                ),
+                              ),
+                            isUser
+                                ? SelectableText(m.content)
+                                : ZoomMd(data: m.content),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              mainAxisAlignment: isUser
+                                  ? MainAxisAlignment.end
+                                  : MainAxisAlignment.start,
+                              children: [
+                                InkWell(
+                                  borderRadius: BorderRadius.circular(4),
+                                  onTap: () {
+                                    Clipboard.setData(
+                                        ClipboardData(text: m.content));
+                                    showSnack(context, 'Copied to clipboard.');
+                                  },
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(4),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(Icons.copy,
+                                            size: 12,
+                                            color: Theme.of(context)
+                                                .colorScheme
+                                                .outline),
+                                        const SizedBox(width: 2),
+                                        Text('Copy',
+                                            style: TextStyle(
+                                                fontSize: 10,
+                                                color: Theme.of(context)
+                                                    .colorScheme
+                                                    .outline)),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
                     );
                   },

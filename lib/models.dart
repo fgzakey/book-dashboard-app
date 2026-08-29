@@ -198,14 +198,16 @@ class ChatMessage {
   final String content;
   final String? model;
   final String? cost;
+  final int? at;
 
-  ChatMessage({required this.role, required this.content, this.model, this.cost});
+  ChatMessage({required this.role, required this.content, this.model, this.cost, this.at});
 
   factory ChatMessage.fromJson(Map<String, dynamic> j) => ChatMessage(
         role: j['role'] as String? ?? 'user',
         content: j['content'] as String? ?? '',
         model: j['model'] as String?,
         cost: j['cost']?.toString(),
+        at: (j['at'] as num?)?.toInt(),
       );
 
   Map<String, dynamic> toJson() => {
@@ -213,6 +215,7 @@ class ChatMessage {
         'content': content,
         if (model != null) 'model': model,
         if (cost != null) 'cost': cost,
+        if (at != null) 'at': at,
       };
 }
 
