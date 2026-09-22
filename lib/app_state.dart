@@ -34,7 +34,7 @@ class AppState extends ChangeNotifier {
   final ApiClient api = ApiClient();
 
   bool loadedPrefs = false;
-  String model = 'google/gemini-2.5-flash';
+  String model = 'gemini-3.8-flash';
   double temperature = 0.4;
 
   /// Global text scale — applies to ALL text incl. Markdown (via the
@@ -79,7 +79,12 @@ class AppState extends ChangeNotifier {
     api.password = p.getString('password') ?? '';
     api.apiKey = p.getString('apiKey') ?? '';
     api.geminiApiKey = p.getString('geminiApiKey') ?? '';
-    model = p.getString('model') ?? model;
+    final savedModel = p.getString('model');
+    if (savedModel != null && savedModel.isNotEmpty && savedModel != 'google/gemini-2.5-flash') {
+      model = savedModel;
+    } else {
+      model = 'gemini-3.8-flash';
+    }
     temperature = p.getDouble('temperature') ?? 0.4;
     mdScale = p.getDouble('mdScale') ?? 1.0;
     imagesModel = p.getString('imagesModel') ?? '';
@@ -379,9 +384,9 @@ class AppState extends ChangeNotifier {
 
   // ---- Models ----
 
-  Future<void> refreshModels() async {
+  Future<void> refreshModels({bool forceRefresh = false}) async {
     try {
-      models = await api.listModels();
+      models = await api.listModels(refresh: forceRefresh);
       notifyListeners();
     } catch (_) {}
   }

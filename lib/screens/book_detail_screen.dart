@@ -304,6 +304,7 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
                     loading: _resultsLoading,
                     error: _resultsError,
                     onRefresh: _loadResults,
+                    bookId: b.bookId,
                     sourceTitle: b.title ?? b.bookId,
                     sourceAuthor: b.author,
                   ),

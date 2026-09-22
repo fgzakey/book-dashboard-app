@@ -28,12 +28,40 @@ final RegExp _contentsRe = RegExp(r'^(table of )?contents$', caseSensitive: fals
 final RegExp _headingRe = RegExp(r'^(#{1,4})[ \t]+(.+?)[ \t]*$');
 final RegExp _fenceRe = RegExp(r'^\s*(```|~~~)');
 
-/// Emits an HTML anchor tag above headings in downloaded markdown.
-/// Uses clean lowercase hyphenated slugs matching GitHub, VS Code editor/preview,
-/// and Obsidian HTML webview navigation.
-String anchorTag(String slug) {
-  final s = slug.isEmpty ? 'section' : slug;
-  return '<a id="$s" name="$s"></a>';
+/// Obsidian resolves in-file links by URL-ENCODED spaces (%20) matching literal heading text.
+/// Punctuation (—, :, ?, &, (), quotes, accents) is kept literal so Obsidian matches the heading.
+String obsidianAnchor(String text) {
+  final clean = text
+      .replaceAll(RegExp(r'<([a-zA-Z0-9_\s-]+)>'), r'$1')
+      .replaceAll(RegExp(r'<[^>]*>'), ' ')
+      .replaceAll(RegExp(r'[[\]#|^]'), '')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
+  return clean.replaceAll(' ', '%20');
+}
+
+/// Emits HTML anchor tags above headings in downloaded markdown.
+/// Supports kebab-case slugs, literal heading anchors, and Obsidian URL-encoded anchors.
+String anchorTag(String text, [String? slug]) {
+  final clean = text
+      .replaceAll(RegExp(r'<([a-zA-Z0-9_\s-]+)>'), r'$1')
+      .replaceAll(RegExp(r'<[^>]*>'), ' ')
+      .trim();
+  final kslug = slug != null && slug.isNotEmpty ? slug : headingSlug(clean, {});
+  final enc = obsidianAnchor(clean);
+  final lit = clean
+      .replaceAll(RegExp(r'[[\]#|^]'), '')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim()
+      .replaceAll('&', '&amp;')
+      .replaceAll('"', '&quot;');
+
+  final validIds = <String>{kslug};
+  final tags = validIds.map((id) => '<a id="$id" name="$id"></a>').join();
+  final encTag = enc.isNotEmpty && !validIds.contains(enc)
+      ? '<a id="$enc" name="$lit"></a>'
+      : '';
+  return '$tags$encTag';
 }
 
 /// Lowercase kebab slug, deduped: first wins, then -2, -3 ...
@@ -296,6 +324,7 @@ String packageMd(
   List<String> sources = const [],
   List<String> models = const [],
   String kind = '',
+  bool isSpanish = false,
   DateTime? processed,
 }) {
   var raw = withTitleHeading(
@@ -367,13 +396,31 @@ String packageMd(
     final t = h.text;
     if (skip.contains(k) || t.isEmpty || _contentsRe.hasMatch(t)) continue;
     final slug = headingSlug(t, seenHeads);
-    validHeads.add(_ValidHeading(h.level, t, slug));
+    final anchor = obsidianAnchor(t);
+    validHeads.add(_ValidHeading(h.level, t, slug, anchor));
   }
 
   if (validHeads.length >= 2) {
+    final isSpanishDoc = isSpanish ||
+        RegExp(r'[\b_](?:cap[ií]tulos|resúmenes|sabidur[ií]a|español|preguntas|pizarra)\b',
+                caseSensitive: false)
+            .hasMatch('$title $kind') ||
+        RegExp(r'(?:^|\n)##\s*[\d:.]+\s*[-—]\s*[^a-zA-Z]*(?:cap[ií]tulo|conciencia|estudios|din[aá]mica|monogamia|introducci[oó]n)',
+                caseSensitive: false)
+            .hasMatch(raw);
+
+    final tocHeading = isSpanishDoc ? 'Tabla de contenidos' : 'Table of Contents';
+    final tocReturn = isSpanishDoc ? '↑ Tabla de contenidos' : '↑ Table of Contents';
+    final tocAnchorEnc = isSpanishDoc ? 'Tabla%20de%20contenidos' : 'Table%20of%20Contents';
+
     final min = validHeads.map((h) => h.level).reduce((a, b) => a < b ? a : b);
+    const tocAnchor =
+        '<a id="Table%20of%20Contents" name="Table of Contents"></a>'
+        '<a id="Tabla%20de%20contenidos" name="Tabla de contenidos"></a>'
+        '<a id="table-of-contents" name="table-of-contents"></a>'
+        '<a id="tabla-de-contenidos" name="tabla-de-contenidos"></a>';
     final toc =
-        '${anchorTag("table-of-contents")}\n\n## Table of Contents\n\n${validHeads.map((h) => '${"  " * (h.level - min)}- [${h.text}](#${h.slug})').join('\n')}';
+        '$tocAnchor\n\n## $tocHeading\n\n${validHeads.map((h) => '${"  " * (h.level - min)}- [${h.text}](#${h.anchor})').join('\n')}';
 
     final seenBody = <String, int>{};
     final outLines = <String>[];
@@ -412,11 +459,11 @@ String packageMd(
           continue;
         }
         final slug = headingSlug(txt, seenBody);
-        outLines.add(anchorTag(slug));
+        outLines.add(anchorTag(txt, slug));
         outLines.add('');
         outLines.add(line);
         outLines.add('');
-        outLines.add('[↑ Table of Contents](#table-of-contents)');
+        outLines.add('[$tocReturn](#$tocAnchorEnc)');
         continue;
       }
       outLines.add(line);
@@ -445,7 +492,8 @@ class _ValidHeading {
   final int level;
   final String text;
   final String slug;
-  const _ValidHeading(this.level, this.text, this.slug);
+  final String anchor;
+  const _ValidHeading(this.level, this.text, this.slug, this.anchor);
 }
 
 // -------------------------------------------------------- chapter formatting

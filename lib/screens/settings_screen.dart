@@ -87,14 +87,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
               children: [
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: TextField(
-                    controller: search,
-                    onChanged: (_) => setSheet(() {}),
-                    decoration: const InputDecoration(
-                      prefixIcon: Icon(Icons.search),
-                      hintText: 'Search models…',
-                      isDense: true,
-                    ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: search,
+                          onChanged: (_) => setSheet(() {}),
+                          decoration: const InputDecoration(
+                            prefixIcon: Icon(Icons.search),
+                            hintText: 'Search models…',
+                            isDense: true,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Refresh model list',
+                        icon: const Icon(Icons.refresh),
+                        onPressed: () async {
+                          await state.refreshModels(forceRefresh: true);
+                          setSheet(() {});
+                        },
+                      ),
+                    ],
                   ),
                 ),
                 Expanded(

@@ -103,6 +103,7 @@ class PastResultsTab extends StatelessWidget {
   final bool loading;
   final String? error;
   final Future<void> Function() onRefresh;
+  final String? bookId;
   final String scopeLabel; // e.g. 'this book'
   // Identity of the book these results belong to — used for the export
   // filename and the provenance block, exactly as the dashboard does it.
@@ -114,6 +115,7 @@ class PastResultsTab extends StatelessWidget {
     required this.results,
     required this.loading,
     required this.onRefresh,
+    this.bookId,
     this.error,
     this.scopeLabel = 'this book',
     this.sourceTitle = '',
@@ -122,6 +124,80 @@ class PastResultsTab extends StatelessWidget {
 
   String get _sourceLine =>
       '$sourceTitle${(sourceAuthor ?? '').trim().isEmpty ? '' : ' — $sourceAuthor'} (book)';
+
+  /// Erase all extracted results and knowledge graph entries for this book.
+  Future<void> _eraseAllResultsAndGraph(BuildContext context) async {
+    if (bookId == null || bookId!.isEmpty) return;
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Erase all results & graph?'),
+        content: Text(
+          'Are you sure you want to permanently erase all ${results.length} extracted result(s) and knowledge graph entries for "$sourceTitle" from the database?\n\nThis cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(ctx).colorScheme.error,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Erase all'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true || !context.mounted) return;
+    try {
+      final state = context.read<AppState>();
+      await state.api.deleteBookResults(bookId!, includeGraph: true);
+      if (context.mounted) {
+        showSnack(context, 'All results and graph entries erased.');
+        onRefresh();
+      }
+    } catch (e) {
+      if (context.mounted) showSnack(context, 'Failed to erase results: $e');
+    }
+  }
+
+  Future<void> _deleteOneResult(BuildContext context, SavedResult r) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete saved result?'),
+        content: Text(
+          'Are you sure you want to permanently delete "${r.promptName ?? 'this result'}" from the database?\n\nThis cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(ctx).colorScheme.error,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true || !context.mounted) return;
+    try {
+      final state = context.read<AppState>();
+      await state.api.deleteResult(r.id);
+      if (context.mounted) {
+        showSnack(context, 'Result deleted.');
+        onRefresh();
+      }
+    } catch (e) {
+      if (context.mounted) showSnack(context, 'Failed to delete: $e');
+    }
+  }
 
   /// All results for this book as one document, ordered as shown — the
   /// dashboard's "⬇ All results .md".
@@ -164,12 +240,19 @@ class PastResultsTab extends StatelessWidget {
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
               ),
-              if (results.isNotEmpty)
+              if (results.isNotEmpty) ...[
+                if (bookId != null && bookId!.isNotEmpty)
+                  IconButton(
+                    tooltip: 'Erase all results & graph',
+                    icon: const Icon(Icons.delete_forever_outlined),
+                    onPressed: loading ? null : () => _eraseAllResultsAndGraph(context),
+                  ),
                 IconButton(
                   tooltip: 'Share all results as one .md',
                   icon: const Icon(Icons.ios_share),
                   onPressed: () => _exportAll(context),
                 ),
+              ],
               IconButton(
                 tooltip: 'Reload',
                 icon: const Icon(Icons.refresh),
@@ -229,19 +312,31 @@ class PastResultsTab extends StatelessWidget {
                             ? null
                             : Text(meta,
                                 maxLines: 2, overflow: TextOverflow.ellipsis),
-                        trailing: r.hasAudio
-                            ? Icon(Icons.download_for_offline_outlined,
-                                size: 20,
-                                color: Theme.of(context).colorScheme.primary)
-                            : null,
-                        onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (_) => SavedResultPage(
-                                  result: r,
-                                  sourceTitle: sourceTitle,
-                                  sourceLine: _sourceLine)),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (r.hasAudio)
+                              Icon(Icons.download_for_offline_outlined,
+                                  size: 20,
+                                  color: Theme.of(context).colorScheme.primary),
+                            IconButton(
+                              icon: const Icon(Icons.delete_outline, size: 20),
+                              tooltip: 'Delete result',
+                              onPressed: () => _deleteOneResult(context, r),
+                            ),
+                          ],
                         ),
+                        onTap: () async {
+                          final deleted = await Navigator.push<bool>(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) => SavedResultPage(
+                                    result: r,
+                                    sourceTitle: sourceTitle,
+                                    sourceLine: _sourceLine)),
+                          );
+                          if (deleted == true) onRefresh();
+                        },
                       );
                     },
                   ),
@@ -313,6 +408,42 @@ class SavedResultPage extends StatelessWidget {
     }
   }
 
+  Future<void> _deleteThisResult(BuildContext context) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete this result?'),
+        content: Text(
+          'Are you sure you want to permanently delete "${result.promptName ?? 'this result'}" from the database?\n\nThis cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(ctx).colorScheme.error,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true || !context.mounted) return;
+    try {
+      final state = context.read<AppState>();
+      await state.api.deleteResult(result.id);
+      if (context.mounted) {
+        showSnack(context, 'Result deleted.');
+        Navigator.pop(context, true);
+      }
+    } catch (e) {
+      if (context.mounted) showSnack(context, 'Failed to delete: $e');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final meta = [
@@ -345,6 +476,11 @@ class SavedResultPage extends StatelessWidget {
               Clipboard.setData(ClipboardData(text: result.content));
               showSnack(context, 'Copied.');
             },
+          ),
+          IconButton(
+            tooltip: 'Delete saved result',
+            icon: const Icon(Icons.delete_outline),
+            onPressed: () => _deleteThisResult(context),
           ),
         ],
       ),
