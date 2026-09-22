@@ -267,18 +267,19 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
 
     return DefaultTabController(
       length: 7,
+      initialIndex: 0,
       child: Scaffold(
         appBar: AppBar(
           title: Text(b.title ?? b.bookId,
               maxLines: 1, overflow: TextOverflow.ellipsis),
           bottom: const TabBar(isScrollable: true, tabs: [
-            Tab(text: 'Chat'),
             Tab(text: 'Chapters'),
             Tab(text: 'Results'),
             Tab(text: 'Audio'),
             Tab(text: 'Text'),
             Tab(text: 'Images'),
             Tab(text: 'Scribe'),
+            Tab(text: 'Chat'),
           ]),
           actions: [
             const TextSizeButtons(),
@@ -295,7 +296,6 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
             Expanded(
               child: TabBarView(
                 children: [
-                  _buildChat(state, b),
                   _buildChapters(state, b),
                   // Past prompt results for THIS book — the global Results
                   // section, scoped, between Chapters and Audio.
@@ -312,6 +312,7 @@ class _BookDetailScreenState extends State<BookDetailScreen> {
                   _buildText(b),
                   ImagesTab(book: b),
                   ScribeTab(book: b),
+                  _buildChat(state, b),
                 ],
               ),
             ),
