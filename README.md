@@ -1,6 +1,6 @@
 # Book Dashboard — Android app (phone + tablet)
 
-Flutter companion app for the [Book Dashboard](https://huggingface.co/spaces/fgza/book-dashboard) — a co-reading cognitive tool for books. It is a thin client of the same backend (the Hugging Face Space), so it reads and writes the **same Neon Postgres database** as the web version: books, chats, prompts, results, image catalogs, and whiteboards all sync both ways.
+Flutter companion app for [Phil's Library](https://huggingface.co/spaces/fgza/phils-library) — a co-reading cognitive tool for books. It is a thin client of the same backend (the Hugging Face Space), so it reads and writes the **same Neon Postgres database** as the web version: books, chats, prompts, results, image catalogs, and whiteboards all sync both ways.
 
 ## Features (full web parity)
 
@@ -25,7 +25,7 @@ On the phone, download the APK from Releases, open it, and allow "install from t
 
 ## First-run setup in the app
 
-1. Server URL: the Space's **direct** URL, e.g. `https://fgza-book-dashboard.hf.space` (not the huggingface.co page).
+1. Server URL: the Space's **direct** URL, e.g. `https://fgza-phils-library.hf.space` (not the huggingface.co page).
 2. App password: the same `APP_PASSWORD` as the web login.
 3. OpenRouter key: only if the Space has no `OPENROUTER_API_KEY` secret.
 4. Tap **Save & test connection**, then pick a model.

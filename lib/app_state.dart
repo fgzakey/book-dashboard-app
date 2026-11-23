@@ -28,7 +28,7 @@ Map<String, dynamic>? _looseJson(String? content) {
 
 /// Prefilled server address — the deployed Space. Only the app password is
 /// needed on first run; override the URL in Settings to point elsewhere.
-const String kDefaultServerUrl = 'https://fgza-book-dashboard.hf.space';
+const String kDefaultServerUrl = 'https://fgza-phils-library.hf.space';
 
 class AppState extends ChangeNotifier {
   final ApiClient api = ApiClient();
@@ -74,7 +74,11 @@ class AppState extends ChangeNotifier {
 
   Future<void> loadPrefs() async {
     final p = await SharedPreferences.getInstance();
-    final savedUrl = p.getString('baseUrl');
+    var savedUrl = p.getString('baseUrl');
+    if (savedUrl == 'https://fgza-book-dashboard.hf.space') {
+      savedUrl = kDefaultServerUrl;
+      await p.setString('baseUrl', kDefaultServerUrl);
+    }
     api.baseUrl = (savedUrl == null || savedUrl.isEmpty) ? kDefaultServerUrl : savedUrl;
     api.password = p.getString('password') ?? '';
     api.apiKey = p.getString('apiKey') ?? '';
